@@ -1,0 +1,47 @@
+{
+  "name": "@guardian-pulse/monorepo",
+  "version": "1.0.0",
+  "description": "GuardianPulse Monorepo - Revolutionary AI-powered personal safety application",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r run dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "format": "pnpm -r run format",
+    "code-quality": "pnpm -r run code-quality",
+    "prepare": "husky"
+  },
+  "keywords": [
+    "guardian-pulse",
+    "safety",
+    "ai",
+    "monitoring",
+    "security"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.2",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2"
+  },
+  "lint-staged": {
+    "packages/*/src/**/*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "packages/**/package.json": [
+      "prettier --write"
+    ],
+    "*.md": [
+      "prettier --write"
+    ]
+  },
+  "dependencies": {
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
+  }
+}

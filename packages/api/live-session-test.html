@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GuardianPulse Live Session Test</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .stop-button {
+            background-color: #dc3545;
+        }
+        .stop-button:hover {
+            background-color: #c82333;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+            min-width: 200px;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .status.session-active {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ GuardianPulse Live Session Test</h1>
+        <p>Test client for the Live Session Management system (Prompt #14)</p>
+
+        <div class="section">
+            <h3>🔗 Connection</h3>
+            <div>
+                <input type="text" id="jwtToken" placeholder="Enter JWT Token for authentication" style="width: 400px;">
+                <button onclick="connect()">Connect</button>
+                <button onclick="disconnect()">Disconnect</button>
+            </div>
+            <div id="connectionStatus" class="status disconnected">Disconnected</div>
+        </div>
+
+        <div class="section">
+            <h3>📡 Live Session Controls</h3>
+            <div>
+                <button id="startSessionBtn" onclick="startLiveSession()" disabled>Start Live Session</button>
+                <button id="stopSessionBtn" onclick="stopLiveSession()" disabled class="stop-button">Stop Live Session</button>
+            </div>
+            <div id="sessionStatus" class="status">No active session</div>
+        </div>
+
+        <div class="section">
+            <h3>📍 Location Broadcasting (Prompt #15)</h3>
+            <div>
+                <input type="number" id="latitude" placeholder="Latitude (-90 to 90)" step="0.000001" style="width: 150px;">
+                <input type="number" id="longitude" placeholder="Longitude (-180 to 180)" step="0.000001" style="width: 150px;">
+                <input type="number" id="accuracy" placeholder="Accuracy (meters)" step="0.1" style="width: 120px;">
+                <br>
+                <button id="sendLocationBtn" onclick="sendLocation()" disabled>Send Location</button>
+                <button onclick="startLocationSimulation()" id="simulateBtn" disabled>Simulate GPS</button>
+                <button onclick="stopLocationSimulation()" id="stopSimulateBtn" disabled class="stop-button">Stop Simulation</button>
+                <button onclick="getCurrentLocation()">Get Current Location</button>
+            </div>
+            <div id="locationStatus" class="status">Location tracking ready</div>
+        </div>
+
+        <div class="section">
+            <h3>📋 Event Log</h3>
+            <button onclick="clearLog()">Clear Log</button>
+            <div id="eventLog" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let isConnected = false;
+        let hasActiveSession = false;
+        let locationSimulationInterval = null;
+
+        // Update UI elements
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connectionStatus');
+            const startBtn = document.getElementById('startSessionBtn');
+            const stopBtn = document.getElementById('stopSessionBtn');
+            const sendLocationBtn = document.getElementById('sendLocationBtn');
+            const simulateBtn = document.getElementById('simulateBtn');
+            const stopSimulateBtn = document.getElementById('stopSimulateBtn');
+            
+            isConnected = connected;
+            
+            if (connected) {
+                status.textContent = 'Connected';
+                status.className = 'status connected';
+                startBtn.disabled = hasActiveSession;
+            } else {
+                status.textContent = 'Disconnected';
+                status.className = 'status disconnected';
+                startBtn.disabled = true;
+                stopBtn.disabled = true;
+                sendLocationBtn.disabled = true;
+                simulateBtn.disabled = true;
+                stopSimulateBtn.disabled = true;
+                updateSessionStatus(false);
+                stopLocationSimulation();
+            }
+        }
+
+        function updateSessionStatus(active, sessionData = null) {
+            const status = document.getElementById('sessionStatus');
+            const startBtn = document.getElementById('startSessionBtn');
+            const stopBtn = document.getElementById('stopSessionBtn');
+            const sendLocationBtn = document.getElementById('sendLocationBtn');
+            const simulateBtn = document.getElementById('simulateBtn');
+            
+            hasActiveSession = active;
+            
+            if (active && sessionData) {
+                status.textContent = `Active Session: ${sessionData.sessionId} (${sessionData.connectedGuardians} guardians connected)`;
+                status.className = 'status session-active';
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                sendLocationBtn.disabled = false;
+                simulateBtn.disabled = false;
+            } else {
+                status.textContent = 'No active session';
+                status.className = 'status';
+                startBtn.disabled = !isConnected;
+                stopBtn.disabled = true;
+                sendLocationBtn.disabled = true;
+                simulateBtn.disabled = true;
+                stopLocationSimulation();
+            }
+        }
+
+        // Logging function
+        function logEvent(type, message, data = null) {
+            const log = document.getElementById('eventLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            
+            let logMessage = `[${timestamp}] ${type}: ${message}`;
+            if (data) {
+                logMessage += `\\n${JSON.stringify(data, null, 2)}`;
+            }
+            
+            entry.textContent = logMessage;
+            entry.style.borderBottom = '1px solid #eee';
+            entry.style.padding = '5px 0';
+            
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        // Socket.IO connection functions
+        function connect() {
+            const token = document.getElementById('jwtToken').value.trim();
+            if (!token) {
+                alert('Please enter a JWT token');
+                return;
+            }
+
+            if (socket) {
+                socket.disconnect();
+            }
+
+            logEvent('CONNECTION', 'Attempting to connect...');
+
+            socket = io('http://localhost:8080', {
+                auth: {
+                    token: token
+                },
+                transports: ['websocket', 'polling']
+            });
+
+            // Connection events
+            socket.on('connect', () => {
+                logEvent('CONNECTION', 'Connected successfully');
+                updateConnectionStatus(true);
+            });
+
+            socket.on('disconnect', (reason) => {
+                logEvent('CONNECTION', `Disconnected: ${reason}`);
+                updateConnectionStatus(false);
+            });
+
+            socket.on('connect_error', (error) => {
+                logEvent('ERROR', `Connection failed: ${error.message}`);
+                updateConnectionStatus(false);
+            });
+
+            // Live Session events
+            socket.on('session-started', (data) => {
+                logEvent('SESSION', 'Live session started', data);
+                updateSessionStatus(true, data);
+            });
+
+            socket.on('session-ended', (data) => {
+                logEvent('SESSION', 'Live session ended', data);
+                updateSessionStatus(false);
+            });
+
+            socket.on('guardian:session-started', (data) => {
+                logEvent('GUARDIAN', 'Guardian notified of new session', data);
+            });
+
+            socket.on('session-error', (data) => {
+                logEvent('ERROR', 'Session error', data);
+            });
+
+            // Location events (Prompt #15)
+            socket.on('location-updated', (data) => {
+                logEvent('LOCATION', 'Location broadcasted to guardians', data);
+                updateLocationStatus(`Location shared: ${data.location.latitude}, ${data.location.longitude}`);
+            });
+
+            socket.on('location-acknowledged', (data) => {
+                logEvent('LOCATION', 'Location acknowledged', data);
+                updateLocationStatus(`Location sent (${data.guardianCount} guardians notified)`);
+            });
+
+            socket.on('location-error', (data) => {
+                logEvent('ERROR', 'Location error', data);
+                updateLocationStatus(`Error: ${data.message}`);
+            });
+
+            // General events
+            socket.on('pong', (data) => {
+                logEvent('PING', 'Pong received', data);
+            });
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                updateConnectionStatus(false);
+                logEvent('CONNECTION', 'Manually disconnected');
+            }
+        }
+
+        // Live Session functions
+        function startLiveSession() {
+            if (!socket || !isConnected) {
+                alert('Please connect first');
+                return;
+            }
+
+            logEvent('SESSION', 'Starting live session...');
+            socket.emit('start-live-session', {
+                // Optional session metadata
+                sessionType: 'test',
+                note: 'Testing live session from web client'
+            });
+        }
+
+        function stopLiveSession() {
+            if (!socket || !isConnected) {
+                alert('Please connect first');
+                return;
+            }
+
+            logEvent('SESSION', 'Stopping live session...');
+            socket.emit('stop-live-session');
+        }
+
+        // Location functions (Prompt #15)
+        function updateLocationStatus(message) {
+            const status = document.getElementById('locationStatus');
+            status.textContent = message;
+            status.className = 'status';
+        }
+
+        function sendLocation() {
+            if (!socket || !isConnected) {
+                alert('Please connect first');
+                return;
+            }
+
+            if (!hasActiveSession) {
+                alert('Please start a live session first');
+                return;
+            }
+
+            const latitude = parseFloat(document.getElementById('latitude').value);
+            const longitude = parseFloat(document.getElementById('longitude').value);
+            const accuracy = parseFloat(document.getElementById('accuracy').value);
+
+            if (isNaN(latitude) || isNaN(longitude)) {
+                alert('Please enter valid latitude and longitude');
+                return;
+            }
+
+            const locationData = {
+                latitude: latitude,
+                longitude: longitude
+            };
+
+            if (!isNaN(accuracy)) {
+                locationData.accuracy = accuracy;
+            }
+
+            logEvent('LOCATION', 'Sending location update...', locationData);
+            socket.emit('update-location', locationData);
+        }
+
+        function startLocationSimulation() {
+            if (locationSimulationInterval) {
+                stopLocationSimulation();
+            }
+
+            // Simulate movement around San Francisco
+            let lat = 37.7749; // Starting latitude
+            let lng = -122.4194; // Starting longitude
+            let direction = 0;
+
+            const simulateBtn = document.getElementById('simulateBtn');
+            const stopSimulateBtn = document.getElementById('stopSimulateBtn');
+            
+            simulateBtn.disabled = true;
+            stopSimulateBtn.disabled = false;
+
+            updateLocationStatus('GPS simulation started...');
+
+            locationSimulationInterval = setInterval(() => {
+                // Simulate random movement
+                const distance = 0.001; // Small movement
+                const randomAngle = direction + (Math.random() - 0.5) * 60; // Some randomness
+                
+                lat += Math.cos(randomAngle * Math.PI / 180) * distance;
+                lng += Math.sin(randomAngle * Math.PI / 180) * distance;
+                direction += (Math.random() - 0.5) * 30; // Change direction slightly
+
+                // Update input fields
+                document.getElementById('latitude').value = lat.toFixed(6);
+                document.getElementById('longitude').value = lng.toFixed(6);
+                document.getElementById('accuracy').value = (5 + Math.random() * 10).toFixed(1); // Random accuracy 5-15m
+
+                // Send location if session is active
+                if (hasActiveSession) {
+                    const locationData = {
+                        latitude: lat,
+                        longitude: lng,
+                        accuracy: parseFloat(document.getElementById('accuracy').value),
+                        speed: Math.random() * 5, // Random speed 0-5 m/s
+                        heading: (direction + 360) % 360 // Normalize heading
+                    };
+
+                    socket.emit('update-location', locationData);
+                }
+            }, 3000); // Send every 3 seconds
+        }
+
+        function stopLocationSimulation() {
+            if (locationSimulationInterval) {
+                clearInterval(locationSimulationInterval);
+                locationSimulationInterval = null;
+            }
+
+            const simulateBtn = document.getElementById('simulateBtn');
+            const stopSimulateBtn = document.getElementById('stopSimulateBtn');
+            
+            if (simulateBtn) simulateBtn.disabled = !hasActiveSession;
+            if (stopSimulateBtn) stopSimulateBtn.disabled = true;
+
+            updateLocationStatus('GPS simulation stopped');
+        }
+
+        function getCurrentLocation() {
+            if ("geolocation" in navigator) {
+                updateLocationStatus('Getting current location...');
+                
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        const accuracy = position.coords.accuracy;
+
+                        document.getElementById('latitude').value = lat.toFixed(6);
+                        document.getElementById('longitude').value = lng.toFixed(6);
+                        document.getElementById('accuracy').value = accuracy.toFixed(1);
+
+                        updateLocationStatus(`Current location: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                        logEvent('LOCATION', 'Got current location', {
+                            latitude: lat,
+                            longitude: lng,
+                            accuracy: accuracy
+                        });
+                    },
+                    function(error) {
+                        updateLocationStatus(`Geolocation error: ${error.message}`);
+                        logEvent('ERROR', 'Geolocation failed', { error: error.message });
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            } else {
+                updateLocationStatus('Geolocation not supported');
+                alert('Geolocation is not supported by this browser');
+            }
+        }
+
+        // Test ping function
+        function sendPing() {
+            if (!socket || !isConnected) {
+                alert('Please connect first');
+                return;
+            }
+
+            logEvent('PING', 'Sending ping...');
+            socket.emit('ping');
+        }
+
+        // Initialize UI
+        updateConnectionStatus(false);
+        updateSessionStatus(false);
+
+        // Add ping button
+        document.addEventListener('DOMContentLoaded', () => {
+            const sessionSection = document.querySelector('.section:nth-child(3)');
+            const pingButton = document.createElement('button');
+            pingButton.textContent = 'Send Ping';
+            pingButton.onclick = sendPing;
+            pingButton.style.backgroundColor = '#28a745';
+            pingButton.addEventListener('mouseover', () => {
+                pingButton.style.backgroundColor = '#218838';
+            });
+            pingButton.addEventListener('mouseout', () => {
+                pingButton.style.backgroundColor = '#28a745';
+            });
+            sessionSection.querySelector('div').appendChild(pingButton);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GuardianPulse Evidence Upload Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        input, button, select {
+            margin: 5px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .file-input {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #4caf50;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .url-display {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ GuardianPulse Evidence Upload Test</h1>
+        
+        <!-- Authentication Section -->
+        <div class="section">
+            <h3>🔐 Authentication</h3>
+            <div>
+                <input type="email" id="email" placeholder="Email" style="width: 200px;">
+                <input type="password" id="password" placeholder="Password" style="width: 200px;">
+                <button onclick="login()">Login</button>
+                <button onclick="logout()">Logout</button>
+            </div>
+            <div id="authStatus" class="status info">Please login to test evidence upload</div>
+        </div>
+
+        <!-- File Upload Section -->
+        <div class="section">
+            <h3>📁 Evidence File Upload</h3>
+            <div>
+                <input type="file" id="fileInput" class="file-input" accept="audio/*,video/*,image/*,.pdf,.txt">
+                <button onclick="uploadEvidence()" id="uploadBtn" disabled>Upload Evidence</button>
+            </div>
+            <div class="progress" id="progressContainer" style="display: none;">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div id="uploadStatus"></div>
+            <div id="uploadUrl" class="url-display" style="display: none;"></div>
+        </div>
+
+        <!-- Download Test Section -->
+        <div class="section">
+            <h3>⬇️ Download Evidence Test</h3>
+            <div>
+                <input type="text" id="fileKey" placeholder="File Key (e.g., evidence/2025/01/1642684800000_abc123.mp3)" style="width: 400px;">
+                <button onclick="getDownloadUrl()">Get Download URL</button>
+            </div>
+            <div id="downloadStatus"></div>
+            <div id="downloadUrl" class="url-display" style="display: none;"></div>
+        </div>
+
+        <!-- API Response Section -->
+        <div class="section">
+            <h3>📋 API Response Log</h3>
+            <pre id="responseLog" style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; max-height: 300px; overflow-y: auto;"></pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api/v1';
+        let authToken = localStorage.getItem('authToken');
+        
+        // Update auth status on page load
+        updateAuthStatus();
+        
+        function updateAuthStatus() {
+            const authStatus = document.getElementById('authStatus');
+            const uploadBtn = document.getElementById('uploadBtn');
+            
+            if (authToken) {
+                authStatus.className = 'status success';
+                authStatus.textContent = 'Authenticated - Ready to upload evidence';
+                uploadBtn.disabled = false;
+            } else {
+                authStatus.className = 'status info';
+                authStatus.textContent = 'Please login to test evidence upload';
+                uploadBtn.disabled = true;
+            }
+        }
+        
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                alert('Please enter email and password');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/users/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                logResponse('Login', data);
+                
+                if (response.ok && data.token) {
+                    authToken = data.token;
+                    localStorage.setItem('authToken', authToken);
+                    updateAuthStatus();
+                } else {
+                    alert('Login failed: ' + (data.message || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Login error: ' + error.message);
+                logResponse('Login Error', { error: error.message });
+            }
+        }
+        
+        function logout() {
+            authToken = null;
+            localStorage.removeItem('authToken');
+            updateAuthStatus();
+            document.getElementById('email').value = '';
+            document.getElementById('password').value = '';
+            logResponse('Logout', { message: 'Logged out successfully' });
+        }
+        
+        async function uploadEvidence() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+            
+            if (!authToken) {
+                alert('Please login first');
+                return;
+            }
+            
+            try {
+                // Step 1: Get pre-signed URL
+                const uploadUrlResponse = await fetch(`${API_BASE}/evidence/upload-url`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        fileName: file.name,
+                        fileType: file.type,
+                        fileSize: file.size
+                    })
+                });
+                
+                const uploadUrlData = await uploadUrlResponse.json();
+                logResponse('Get Upload URL', uploadUrlData);
+                
+                if (!uploadUrlResponse.ok) {
+                    throw new Error(uploadUrlData.message || 'Failed to get upload URL');
+                }
+                
+                // Display the upload URL
+                const uploadUrlDiv = document.getElementById('uploadUrl');
+                uploadUrlDiv.style.display = 'block';
+                uploadUrlDiv.textContent = `Upload URL: ${uploadUrlData.data.uploadUrl}`;
+                
+                // Step 2: Upload file to S3
+                const uploadStatus = document.getElementById('uploadStatus');
+                const progressContainer = document.getElementById('progressContainer');
+                const progressBar = document.getElementById('progressBar');
+                
+                uploadStatus.className = 'status info';
+                uploadStatus.textContent = 'Uploading file to S3...';
+                progressContainer.style.display = 'block';
+                
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        progressBar.style.width = percentComplete + '%';
+                    }
+                });
+                
+                xhr.addEventListener('load', () => {
+                    progressContainer.style.display = 'none';
+                    
+                    if (xhr.status === 200) {
+                        uploadStatus.className = 'status success';
+                        uploadStatus.textContent = `File uploaded successfully! File Key: ${uploadUrlData.data.fileKey}`;
+                        
+                        // Pre-fill the download test
+                        document.getElementById('fileKey').value = uploadUrlData.data.fileKey;
+                        
+                        logResponse('S3 Upload Success', {
+                            status: xhr.status,
+                            fileKey: uploadUrlData.data.fileKey,
+                            message: 'File uploaded to S3 successfully'
+                        });
+                    } else {
+                        uploadStatus.className = 'status error';
+                        uploadStatus.textContent = `Upload failed with status: ${xhr.status}`;
+                        logResponse('S3 Upload Error', { status: xhr.status, response: xhr.responseText });
+                    }
+                });
+                
+                xhr.addEventListener('error', () => {
+                    progressContainer.style.display = 'none';
+                    uploadStatus.className = 'status error';
+                    uploadStatus.textContent = 'Upload failed due to network error';
+                    logResponse('S3 Upload Network Error', { error: 'Network error during upload' });
+                });
+                
+                xhr.open('PUT', uploadUrlData.data.uploadUrl);
+                xhr.setRequestHeader('Content-Type', file.type);
+                xhr.send(file);
+                
+            } catch (error) {
+                document.getElementById('uploadStatus').className = 'status error';
+                document.getElementById('uploadStatus').textContent = 'Upload failed: ' + error.message;
+                document.getElementById('progressContainer').style.display = 'none';
+                logResponse('Upload Error', { error: error.message });
+            }
+        }
+        
+        async function getDownloadUrl() {
+            const fileKey = document.getElementById('fileKey').value;
+            
+            if (!fileKey) {
+                alert('Please enter a file key');
+                return;
+            }
+            
+            if (!authToken) {
+                alert('Please login first');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/evidence/download-url/${encodeURIComponent(fileKey)}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                logResponse('Get Download URL', data);
+                
+                if (response.ok) {
+                    const downloadStatus = document.getElementById('downloadStatus');
+                    const downloadUrlDiv = document.getElementById('downloadUrl');
+                    
+                    downloadStatus.className = 'status success';
+                    downloadStatus.textContent = 'Download URL generated successfully!';
+                    downloadUrlDiv.style.display = 'block';
+                    downloadUrlDiv.innerHTML = `
+                        <strong>Download URL:</strong><br>
+                        ${data.data.downloadUrl}<br><br>
+                        <a href="${data.data.downloadUrl}" target="_blank">📥 Download File</a>
+                    `;
+                } else {
+                    document.getElementById('downloadStatus').className = 'status error';
+                    document.getElementById('downloadStatus').textContent = 'Failed to get download URL: ' + (data.message || 'Unknown error');
+                }
+            } catch (error) {
+                document.getElementById('downloadStatus').className = 'status error';
+                document.getElementById('downloadStatus').textContent = 'Error: ' + error.message;
+                logResponse('Download URL Error', { error: error.message });
+            }
+        }
+        
+        function logResponse(operation, data) {
+            const log = document.getElementById('responseLog');
+            const timestamp = new Date().toISOString();
+            const entry = `[${timestamp}] ${operation}:\n${JSON.stringify(data, null, 2)}\n\n`;
+            log.textContent = entry + log.textContent;
+        }
+        
+        // File input change handler
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                logResponse('File Selected', {
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    lastModified: new Date(file.lastModified).toISOString()
+                });
+            }
+        });
+    </script>
+</body>
+</html>

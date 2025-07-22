@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: guardian-pulse-postgres
+    environment:
+      POSTGRES_USER: guardianpulse
+      POSTGRES_PASSWORD: guardian_secure_2025
+      POSTGRES_DB: guardianpulse_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guardianpulse -d guardianpulse_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - guardian-pulse-network
+
+  api:
+    build:
+      context: ./packages/api
+      dockerfile: Dockerfile
+      target: production
+    container_name: guardian-pulse-api
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://guardianpulse:guardian_secure_2025@postgres:5432/guardianpulse_db
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - guardian-pulse-network
+
+  # Development service with hot-reloading
+  api-dev:
+    build:
+      context: ./packages/api
+      dockerfile: Dockerfile
+      target: builder
+    container_name: guardian-pulse-api-dev
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://guardianpulse:guardian_secure_2025@postgres:5432/guardianpulse_db
+    volumes:
+      # Mount source code for hot-reloading
+      - ./packages/api/src:/app/src:ro
+      - ./packages/api/package.json:/app/package.json:ro
+      - ./packages/api/tsconfig.json:/app/tsconfig.json:ro
+      # Exclude node_modules to avoid conflicts
+      - /app/node_modules
+    command: ["pnpm", "dev"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - dev
+    networks:
+      - guardian-pulse-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  guardian-pulse-network:
+    driver: bridge

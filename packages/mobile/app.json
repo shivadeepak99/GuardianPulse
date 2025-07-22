@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "GuardianPulse",
+    "slug": "guardian-pulse-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "GuardianPulse needs access to your location to provide safety monitoring and alert your guardians in case of emergencies.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "GuardianPulse needs continuous access to your location to provide comprehensive safety monitoring and ensure your guardians can locate you during emergencies."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "permissions": [
+      "LOCATION"
+    ]
+  }
+}
