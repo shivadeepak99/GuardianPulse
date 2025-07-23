@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../src/contexts/SocketContext';
 import { useLocation } from '../hooks/useLocation';
+import { useAudio } from '../hooks/useAudio';
 
 const { width } = Dimensions.get('window');
 
@@ -30,6 +31,22 @@ const DashboardScreen: React.FC = () => {
     stopLocationTracking,
     getCurrentLocation,
   } = useLocation();
+
+  // Live audio streaming
+  const {
+    isRecording,
+    isConnected: audioConnected,
+    error: audioError,
+    permissionStatus,
+    startRecording,
+    stopRecording,
+    toggleRecording,
+    requestPermissions: requestAudioPermissions,
+  } = useAudio({
+    serverUrl: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001',
+    guardianId: user?.id || '',
+    enabled: isTracking, // Only enable when in Live Mode
+  });
 
   const [isLive, setIsLive] = useState(false);
   const [pulseAnimation] = useState(new Animated.Value(1));
@@ -101,10 +118,20 @@ const DashboardScreen: React.FC = () => {
           timestamp: Date.now(),
           location: currentLocation,
         });
+
+        // Request audio permissions and start streaming
+        if (permissionStatus !== 'granted') {
+          await requestAudioPermissions();
+        }
+
+        // Auto-start audio streaming in Live Mode
+        setTimeout(() => {
+          startRecording();
+        }, 1000); // Small delay to ensure everything is initialized
         
         Alert.alert(
           'Live Mode Activated',
-          'You are now protected! Your guardians will receive real-time updates about your safety.',
+          'You are now protected! Your guardians will receive real-time updates including location and audio.',
           [{ text: 'OK' }]
         );
       } else {
@@ -129,6 +156,7 @@ const DashboardScreen: React.FC = () => {
             style: 'destructive',
             onPress: () => {
               stopLocationTracking();
+              stopRecording(); // Stop audio streaming
               
               // Emit stop-live-session event
               emit('stop-live-session', {
@@ -369,6 +397,69 @@ const DashboardScreen: React.FC = () => {
               <TouchableOpacity style={styles.locationButton} onPress={handleGetCurrentLocation}>
                 <Text style={styles.locationButtonText}>Get Current Location</Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Audio Streaming Card */}
+            <View style={styles.audioCard}>
+              <View style={styles.audioHeader}>
+                <Text style={styles.cardTitle}>Live Audio Streaming</Text>
+                <View style={[styles.statusIndicator, audioConnected ? styles.connected : styles.disconnected]}>
+                  <Text style={styles.statusText}>{audioConnected ? 'Connected' : 'Disconnected'}</Text>
+                </View>
+              </View>
+              
+              <Text style={styles.audioDescription}>
+                Real-time audio streaming to your guardians during Live Mode
+              </Text>
+
+              <View style={styles.audioStatus}>
+                <View style={styles.statusRow}>
+                  <Text style={styles.statusLabel}>Audio Permission:</Text>
+                  <View style={[styles.statusIndicator, permissionStatus === 'granted' ? styles.connected : styles.disconnected]}>
+                    <Text style={styles.statusText}>{permissionStatus}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.statusRow}>
+                  <Text style={styles.statusLabel}>Recording Status:</Text>
+                  <View style={[styles.statusIndicator, isRecording ? styles.recording : styles.stopped]}>
+                    <Text style={styles.statusText}>{isRecording ? 'Recording' : 'Stopped'}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {audioError && (
+                <View style={styles.audioError}>
+                  <Text style={styles.errorText}>⚠️ {audioError}</Text>
+                </View>
+              )}
+
+              <View style={styles.audioControls}>
+                <TouchableOpacity 
+                  style={[styles.audioButton, isRecording ? styles.stopButton : styles.startButton]}
+                  onPress={toggleRecording}
+                  disabled={!isLive} // Only allow when in Live Mode
+                >
+                  <Text style={styles.audioButtonText}>
+                    {isRecording ? '🛑 Stop Audio' : '🎤 Start Audio'}
+                  </Text>
+                </TouchableOpacity>
+
+                {permissionStatus !== 'granted' && (
+                  <TouchableOpacity 
+                    style={styles.permissionButton}
+                    onPress={requestAudioPermissions}
+                  >
+                    <Text style={styles.permissionButtonText}>Grant Audio Permission</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {!isLive && (
+                <Text style={styles.audioNote}>
+                  🛡️ Audio streaming is only available during Live Mode
+                </Text>
+              )}
             </View>
           </>
         )}
@@ -742,6 +833,91 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Audio streaming styles
+  audioCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  audioHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  audioDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  audioStatus: {
+    marginBottom: 16,
+  },
+  audioError: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  audioControls: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  audioButton: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  startButton: {
+    backgroundColor: '#10B981',
+  },
+  stopButton: {
+    backgroundColor: '#EF4444',
+  },
+  audioButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  permissionButton: {
+    flex: 1,
+    backgroundColor: '#F59E0B',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  permissionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  audioNote: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: 8,
+  },
+  recording: {
+    backgroundColor: '#EF4444',
+  },
+  stopped: {
+    backgroundColor: '#6B7280',
   },
 });
 
