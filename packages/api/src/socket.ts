@@ -580,6 +580,100 @@ export function initSocket(httpServer: HttpServer): Server {
       }
     });
 
+    // Real-time Audio Streaming - Prompt #32
+    
+    // Handle audio stream chunks during active sessions
+    socket.on('audio-stream', async (data) => {
+      try {
+        if (!socket.userId) {
+          socket.emit('audio-error', {
+            message: 'User not authenticated',
+            timestamp: new Date().toISOString()
+          });
+          return;
+        }
+
+        Logger.debug('Audio stream chunk received', {
+          socketId: socket.id,
+          userId: socket.userId,
+          hasAudioData: !!data?.audioData,
+          format: data?.format,
+          timestamp: data?.timestamp
+        });
+
+        // Verify that the Ward has an active session
+        const sessionData = activeSessions.get(socket.userId);
+        if (!sessionData) {
+          Logger.debug('Audio stream ignored - no active session', {
+            userId: socket.userId
+          });
+          
+          socket.emit('audio-error', {
+            message: 'No active session found. Start a live session to stream audio.',
+            timestamp: new Date().toISOString()
+          });
+          return;
+        }
+
+        // Validate audio data
+        if (!data || !data.audioData || !data.timestamp) {
+          socket.emit('audio-error', {
+            message: 'Invalid audio data. Audio data and timestamp are required.',
+            timestamp: new Date().toISOString()
+          });
+          return;
+        }
+
+        // Create audio chunk payload for guardians
+        const audioChunkPayload = {
+          sessionId: sessionData.sessionId,
+          wardId: socket.userId,
+          audio: {
+            data: data.audioData,
+            timestamp: data.timestamp,
+            format: data.format || 'm4a',
+            sampleRate: data.sampleRate || 16000,
+            channels: data.channels || 1,
+            chunkIndex: Date.now(), // Unique identifier for this chunk
+          },
+          timestamp: new Date().toISOString()
+        };
+
+        // Broadcast audio chunk to the Ward's guardians
+        io.to(sessionData.roomName).emit('audio-chunk-received', audioChunkPayload);
+
+        Logger.info('Audio chunk broadcasted to guardians', {
+          userId: socket.userId,
+          sessionId: sessionData.sessionId,
+          roomName: sessionData.roomName,
+          guardianCount: sessionData.guardianIds.length,
+          audioFormat: data.format,
+          chunkSize: data.audioData?.length || 0
+        });
+
+        // Acknowledge audio chunk to the Ward
+        socket.emit('audio-acknowledged', {
+          sessionId: sessionData.sessionId,
+          timestamp: new Date().toISOString(),
+          status: 'broadcasted',
+          guardianCount: sessionData.guardianIds.length,
+          chunkIndex: audioChunkPayload.audio.chunkIndex
+        });
+
+      } catch (error) {
+        Logger.error('Failed to process audio stream', {
+          socketId: socket.id,
+          userId: socket.userId,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+
+        socket.emit('audio-error', {
+          message: 'Failed to process audio stream',
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
     // Handle disconnection
     socket.on('disconnect', async (reason) => {
       Logger.info('WebSocket connection closed', {
