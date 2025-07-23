@@ -46,22 +46,22 @@ For more details, see the API documentation below.
       contact: {
         name: 'GuardianPulse Team',
         email: 'api@guardianpulse.com',
-        url: 'https://guardianpulse.com'
+        url: 'https://guardianpulse.com',
       },
       license: {
         name: 'MIT',
-        url: 'https://opensource.org/licenses/MIT'
-      }
+        url: 'https://opensource.org/licenses/MIT',
+      },
     },
     servers: [
       {
         url: `http://localhost:${config.port}/api/v1`,
-        description: 'Development server'
+        description: 'Development server',
       },
       {
         url: 'https://api.guardianpulse.com/v1',
-        description: 'Production server'
-      }
+        description: 'Production server',
+      },
     ],
     components: {
       securitySchemes: {
@@ -69,8 +69,8 @@ For more details, see the API documentation below.
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
-          description: 'JWT Authorization header using the Bearer scheme'
-        }
+          description: 'JWT Authorization header using the Bearer scheme',
+        },
       },
       schemas: {
         User: {
@@ -79,45 +79,45 @@ For more details, see the API documentation below.
             id: {
               type: 'string',
               format: 'uuid',
-              description: 'Unique user identifier'
+              description: 'Unique user identifier',
             },
             email: {
               type: 'string',
               format: 'email',
-              description: 'User email address'
+              description: 'User email address',
             },
             firstName: {
               type: 'string',
-              description: 'User first name'
+              description: 'User first name',
             },
             lastName: {
               type: 'string',
-              description: 'User last name'
+              description: 'User last name',
             },
             isActive: {
               type: 'boolean',
-              description: 'User account status'
+              description: 'User account status',
             },
             emailVerified: {
               type: 'boolean',
-              description: 'Email verification status'
+              description: 'Email verification status',
             },
             privacyLevel: {
               type: 'string',
               enum: ['PUBLIC', 'FRIENDS', 'PRIVATE'],
-              description: 'User privacy level'
+              description: 'User privacy level',
             },
             createdAt: {
               type: 'string',
               format: 'date-time',
-              description: 'Account creation timestamp'
+              description: 'Account creation timestamp',
             },
             updatedAt: {
               type: 'string',
               format: 'date-time',
-              description: 'Last account update timestamp'
-            }
-          }
+              description: 'Last account update timestamp',
+            },
+          },
         },
         UserRegistration: {
           type: 'object',
@@ -126,24 +126,24 @@ For more details, see the API documentation below.
             email: {
               type: 'string',
               format: 'email',
-              description: 'User email address'
+              description: 'User email address',
             },
             password: {
               type: 'string',
               minLength: 8,
-              description: 'User password (minimum 8 characters)'
+              description: 'User password (minimum 8 characters)',
             },
             firstName: {
               type: 'string',
               minLength: 1,
-              description: 'User first name'
+              description: 'User first name',
             },
             lastName: {
               type: 'string',
               minLength: 1,
-              description: 'User last name'
-            }
-          }
+              description: 'User last name',
+            },
+          },
         },
         UserLogin: {
           type: 'object',
@@ -152,70 +152,70 @@ For more details, see the API documentation below.
             email: {
               type: 'string',
               format: 'email',
-              description: 'User email address'
+              description: 'User email address',
             },
             password: {
               type: 'string',
-              description: 'User password'
-            }
-          }
+              description: 'User password',
+            },
+          },
         },
         AuthResponse: {
           type: 'object',
           properties: {
             success: {
               type: 'boolean',
-              description: 'Request success status'
+              description: 'Request success status',
             },
             message: {
               type: 'string',
-              description: 'Response message'
+              description: 'Response message',
             },
             data: {
               type: 'object',
               properties: {
                 user: {
-                  $ref: '#/components/schemas/User'
+                  $ref: '#/components/schemas/User',
                 },
                 token: {
                   type: 'string',
-                  description: 'JWT authentication token'
-                }
-              }
-            }
-          }
+                  description: 'JWT authentication token',
+                },
+              },
+            },
+          },
         },
         ApiResponse: {
           type: 'object',
           properties: {
             success: {
               type: 'boolean',
-              description: 'Request success status'
+              description: 'Request success status',
             },
             message: {
               type: 'string',
-              description: 'Response message'
+              description: 'Response message',
             },
             data: {
               type: 'object',
-              description: 'Response data'
-            }
-          }
+              description: 'Response data',
+            },
+          },
         },
         ValidationError: {
           type: 'object',
           properties: {
             success: {
               type: 'boolean',
-              example: false
+              example: false,
             },
             message: {
               type: 'string',
-              example: 'Validation failed'
+              example: 'Validation failed',
             },
             error: {
               type: 'string',
-              example: 'VALIDATION_ERROR'
+              example: 'VALIDATION_ERROR',
             },
             details: {
               type: 'array',
@@ -224,33 +224,33 @@ For more details, see the API documentation below.
                 properties: {
                   field: {
                     type: 'string',
-                    description: 'Field that failed validation'
+                    description: 'Field that failed validation',
                   },
                   message: {
                     type: 'string',
-                    description: 'Validation error message'
-                  }
-                }
-              }
-            }
-          }
+                    description: 'Validation error message',
+                  },
+                },
+              },
+            },
+          },
         },
         Error: {
           type: 'object',
           properties: {
             success: {
               type: 'boolean',
-              example: false
+              example: false,
             },
             message: {
               type: 'string',
-              description: 'Error message'
+              description: 'Error message',
             },
             error: {
               type: 'string',
-              description: 'Error code'
-            }
-          }
+              description: 'Error code',
+            },
+          },
         },
         GuardianInvitation: {
           type: 'object',
@@ -258,56 +258,56 @@ For more details, see the API documentation below.
             id: {
               type: 'string',
               format: 'uuid',
-              description: 'Unique invitation identifier'
+              description: 'Unique invitation identifier',
             },
             inviterId: {
               type: 'string',
               format: 'uuid',
-              description: 'ID of the user sending the invitation'
+              description: 'ID of the user sending the invitation',
             },
             inviteeEmail: {
               type: 'string',
               format: 'email',
-              description: 'Email of the person being invited'
+              description: 'Email of the person being invited',
             },
             message: {
               type: 'string',
               description: 'Optional message from the inviter',
-              nullable: true
+              nullable: true,
             },
             status: {
               type: 'string',
               enum: ['PENDING', 'ACCEPTED', 'DECLINED'],
-              description: 'Current status of the invitation'
+              description: 'Current status of the invitation',
             },
             createdAt: {
               type: 'string',
               format: 'date-time',
-              description: 'When the invitation was created'
+              description: 'When the invitation was created',
             },
             respondedAt: {
               type: 'string',
               format: 'date-time',
               description: 'When the invitation was responded to',
-              nullable: true
+              nullable: true,
             },
             inviter: {
               type: 'object',
               properties: {
                 id: {
                   type: 'string',
-                  format: 'uuid'
+                  format: 'uuid',
                 },
                 name: {
-                  type: 'string'
+                  type: 'string',
                 },
                 email: {
                   type: 'string',
-                  format: 'email'
-                }
-              }
-            }
-          }
+                  format: 'email',
+                },
+              },
+            },
+          },
         },
         GuardianRelationship: {
           type: 'object',
@@ -315,110 +315,106 @@ For more details, see the API documentation below.
             id: {
               type: 'string',
               format: 'uuid',
-              description: 'Unique relationship identifier'
+              description: 'Unique relationship identifier',
             },
             wardId: {
               type: 'string',
               format: 'uuid',
-              description: 'ID of the ward (person being protected)'
+              description: 'ID of the ward (person being protected)',
             },
             guardianId: {
               type: 'string',
               format: 'uuid',
-              description: 'ID of the guardian (person providing protection)'
+              description: 'ID of the guardian (person providing protection)',
             },
             isActive: {
               type: 'boolean',
-              description: 'Whether the relationship is currently active'
+              description: 'Whether the relationship is currently active',
             },
             permissions: {
               type: 'array',
               items: {
-                type: 'string'
+                type: 'string',
               },
-              description: 'List of permissions granted to the guardian'
+              description: 'List of permissions granted to the guardian',
             },
             createdAt: {
               type: 'string',
               format: 'date-time',
-              description: 'When the relationship was created'
+              description: 'When the relationship was created',
             },
             updatedAt: {
               type: 'string',
               format: 'date-time',
-              description: 'When the relationship was last updated'
+              description: 'When the relationship was last updated',
             },
             ward: {
               type: 'object',
               properties: {
                 id: {
                   type: 'string',
-                  format: 'uuid'
+                  format: 'uuid',
                 },
                 name: {
-                  type: 'string'
+                  type: 'string',
                 },
                 email: {
                   type: 'string',
-                  format: 'email'
-                }
-              }
+                  format: 'email',
+                },
+              },
             },
             guardian: {
               type: 'object',
               properties: {
                 id: {
                   type: 'string',
-                  format: 'uuid'
+                  format: 'uuid',
                 },
                 name: {
-                  type: 'string'
+                  type: 'string',
                 },
                 email: {
                   type: 'string',
-                  format: 'email'
-                }
-              }
-            }
-          }
+                  format: 'email',
+                },
+              },
+            },
+          },
         },
         Pagination: {
           type: 'object',
           properties: {
             page: {
               type: 'integer',
-              description: 'Current page number'
+              description: 'Current page number',
             },
             limit: {
               type: 'integer',
-              description: 'Number of items per page'
+              description: 'Number of items per page',
             },
             total: {
               type: 'integer',
-              description: 'Total number of items'
+              description: 'Total number of items',
             },
             totalPages: {
               type: 'integer',
-              description: 'Total number of pages'
+              description: 'Total number of pages',
             },
             hasNextPage: {
               type: 'boolean',
-              description: 'Whether there is a next page'
+              description: 'Whether there is a next page',
             },
             hasPreviousPage: {
               type: 'boolean',
-              description: 'Whether there is a previous page'
-            }
-          }
-        }
-      }
-    }
+              description: 'Whether there is a previous page',
+            },
+          },
+        },
+      },
+    },
   },
-  apis: [
-    './src/routes/*.ts',
-    './src/api/*.ts',
-    './src/controllers/*.ts'
-  ]
+  apis: ['./src/routes/*.ts', './src/api/*.ts', './src/controllers/*.ts'],
 };
 
 // Generate the Swagger specification

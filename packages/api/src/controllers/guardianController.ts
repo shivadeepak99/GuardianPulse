@@ -1,9 +1,7 @@
 import { Response } from 'express';
 import { DatabaseService } from '../services';
 import { Logger } from '../utils';
-import { 
-  createGuardianInvitationSchema
-} from '../utils/validation';
+import { createGuardianInvitationSchema } from '../utils/validation';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 
@@ -27,8 +25,8 @@ export class GuardianController {
       // Check if user is trying to invite themselves
       const user = await db.user.findUnique({ where: { id: userId } });
       if (user?.email === inviteeEmail) {
-        return res.status(409).json({ 
-          message: 'You cannot invite yourself as a guardian' 
+        return res.status(409).json({
+          message: 'You cannot invite yourself as a guardian',
         });
       }
 
@@ -37,13 +35,13 @@ export class GuardianController {
         where: {
           inviterId: userId,
           inviteeEmail: inviteeEmail,
-          status: 'PENDING'
-        }
+          status: 'PENDING',
+        },
       });
 
       if (existingInvitation) {
-        return res.status(409).json({ 
-          message: 'Invitation already sent to this email' 
+        return res.status(409).json({
+          message: 'Invitation already sent to this email',
         });
       }
 
@@ -53,7 +51,7 @@ export class GuardianController {
           inviterId: userId,
           inviteeEmail: inviteeEmail,
           message: message || null,
-          status: 'PENDING'
+          status: 'PENDING',
         },
         include: {
           inviter: {
@@ -61,10 +59,10 @@ export class GuardianController {
               id: true,
               firstName: true,
               lastName: true,
-              email: true
-            }
-          }
-        }
+              email: true,
+            },
+          },
+        },
       });
 
       Logger.info(`Guardian invitation sent from user ${userId} to ${inviteeEmail}`);
@@ -72,21 +70,21 @@ export class GuardianController {
       return res.status(201).json({
         success: true,
         message: 'Guardian invitation sent successfully',
-        data: { invitation }
+        data: { invitation },
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({
           success: false,
           message: 'Validation error',
-          errors: error.issues
+          errors: error.issues,
         });
       }
 
       Logger.error('Error sending guardian invitation:', error);
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Internal server error' 
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
       });
     }
   }
@@ -98,7 +96,7 @@ export class GuardianController {
   static async getInvitations(req: AuthenticatedRequest, res: Response): Promise<Response> {
     try {
       const userId = req.user?.id;
-      
+
       if (!userId) {
         return res.status(401).json({ message: 'User not authenticated' });
       }
@@ -107,7 +105,7 @@ export class GuardianController {
       const invitations = await db.guardianInvitation.findMany({
         where: {
           inviterId: userId,
-          status: 'PENDING'
+          status: 'PENDING',
         },
         include: {
           inviter: {
@@ -115,22 +113,22 @@ export class GuardianController {
               id: true,
               firstName: true,
               lastName: true,
-              email: true
-            }
-          }
+              email: true,
+            },
+          },
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
       });
 
       return res.json({
         success: true,
-        data: { invitations }
+        data: { invitations },
       });
     } catch (error) {
       Logger.error('Error fetching guardian invitations:', error);
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Internal server error' 
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
       });
     }
   }
@@ -150,9 +148,9 @@ export class GuardianController {
       }
 
       if (!invitationId) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          message: 'Invitation ID is required' 
+          message: 'Invitation ID is required',
         });
       }
 
@@ -161,14 +159,14 @@ export class GuardianController {
         where: {
           id: invitationId,
           inviteeEmail: userEmail,
-          status: 'PENDING'
-        }
+          status: 'PENDING',
+        },
       });
 
       if (!invitation) {
-        return res.status(404).json({ 
+        return res.status(404).json({
           success: false,
-          message: 'Invitation not found or already responded to' 
+          message: 'Invitation not found or already responded to',
         });
       }
 
@@ -183,17 +181,17 @@ export class GuardianController {
                 id: true,
                 firstName: true,
                 lastName: true,
-                email: true
-              }
-            }
-          }
+                email: true,
+              },
+            },
+          },
         }),
         db.guardianRelationship.create({
           data: {
             wardId: invitation.inviterId,
             guardianId: userId,
             isActive: true,
-            permissions: ['VIEW_LOCATION', 'RECEIVE_ALERTS']
+            permissions: ['VIEW_LOCATION', 'RECEIVE_ALERTS'],
           },
           include: {
             ward: {
@@ -201,19 +199,19 @@ export class GuardianController {
                 id: true,
                 firstName: true,
                 lastName: true,
-                email: true
-              }
+                email: true,
+              },
             },
             guardian: {
               select: {
                 id: true,
                 firstName: true,
                 lastName: true,
-                email: true
-              }
-            }
-          }
-        })
+                email: true,
+              },
+            },
+          },
+        }),
       ]);
 
       Logger.info(`Guardian invitation ${invitationId} accepted by user ${userId}`);
@@ -223,14 +221,14 @@ export class GuardianController {
         message: 'Invitation accepted successfully',
         data: {
           invitation: updatedInvitation,
-          relationship
-        }
+          relationship,
+        },
       });
     } catch (error) {
       Logger.error('Error accepting guardian invitation:', error);
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Internal server error' 
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
       });
     }
   }
@@ -250,9 +248,9 @@ export class GuardianController {
       }
 
       if (!invitationId) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          message: 'Invitation ID is required' 
+          message: 'Invitation ID is required',
         });
       }
 
@@ -261,14 +259,14 @@ export class GuardianController {
         where: {
           id: invitationId,
           inviteeEmail: userEmail,
-          status: 'PENDING'
-        }
+          status: 'PENDING',
+        },
       });
 
       if (!invitation) {
-        return res.status(404).json({ 
+        return res.status(404).json({
           success: false,
-          message: 'Invitation not found or already responded to' 
+          message: 'Invitation not found or already responded to',
         });
       }
 
@@ -282,10 +280,10 @@ export class GuardianController {
               id: true,
               firstName: true,
               lastName: true,
-              email: true
-            }
-          }
-        }
+              email: true,
+            },
+          },
+        },
       });
 
       Logger.info(`Guardian invitation ${invitationId} declined by user ${userId}`);
@@ -294,14 +292,14 @@ export class GuardianController {
         success: true,
         message: 'Invitation declined successfully',
         data: {
-          invitation: updatedInvitation
-        }
+          invitation: updatedInvitation,
+        },
       });
     } catch (error) {
       Logger.error('Error declining guardian invitation:', error);
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Internal server error' 
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
       });
     }
   }
@@ -320,7 +318,7 @@ export class GuardianController {
       const relationships = await db.guardianRelationship.findMany({
         where: {
           guardianId: userId,
-          isActive: true
+          isActive: true,
         },
         include: {
           ward: {
@@ -328,24 +326,24 @@ export class GuardianController {
               id: true,
               firstName: true,
               lastName: true,
-              email: true
-            }
-          }
+              email: true,
+            },
+          },
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
       });
 
       const wards = relationships.map((rel: any) => rel.ward);
 
       return res.json({
         success: true,
-        data: { wards }
+        data: { wards },
       });
     } catch (error) {
       Logger.error('Error fetching wards:', error);
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Internal server error' 
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
       });
     }
   }
@@ -364,7 +362,7 @@ export class GuardianController {
       const relationships = await db.guardianRelationship.findMany({
         where: {
           wardId: userId,
-          isActive: true
+          isActive: true,
         },
         include: {
           guardian: {
@@ -372,24 +370,24 @@ export class GuardianController {
               id: true,
               firstName: true,
               lastName: true,
-              email: true
-            }
-          }
+              email: true,
+            },
+          },
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
       });
 
       const guardians = relationships.map((rel: any) => rel.guardian);
 
       return res.json({
         success: true,
-        data: { guardians }
+        data: { guardians },
       });
     } catch (error) {
       Logger.error('Error fetching guardians:', error);
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Internal server error' 
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
       });
     }
   }

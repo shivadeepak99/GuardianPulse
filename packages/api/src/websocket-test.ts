@@ -20,8 +20,8 @@ httpServer.listen(port, () => {
     port,
     endpoints: {
       health: `http://localhost:${port}/health`,
-      websocket: `ws://localhost:${port}`
-    }
+      websocket: `ws://localhost:${port}`,
+    },
   });
 });
 

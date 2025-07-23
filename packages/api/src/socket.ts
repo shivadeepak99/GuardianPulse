@@ -703,7 +703,7 @@ export function initSocket(httpServer: HttpServer): Server {
         }
 
         // Validate audio data
-        if (!data || !data.audioData || !data.timestamp) {
+        if (!data?.audioData || !data.timestamp) {
           socket.emit('audio-error', {
             message: 'Invalid audio data. Audio data and timestamp are required.',
             timestamp: new Date().toISOString(),

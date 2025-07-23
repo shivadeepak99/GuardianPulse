@@ -320,7 +320,7 @@ function parseSize(size: string): number {
   };
 
   const match = size.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb)?$/);
-  if (!match || !match[1]) {
+  if (!match?.[1]) {
     throw new Error(`Invalid size format: ${size}`);
   }
 

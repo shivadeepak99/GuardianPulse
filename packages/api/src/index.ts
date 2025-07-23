@@ -1,6 +1,7 @@
 import express, { Express } from 'express';
 import { createServer } from 'http';
 import type { Server as HttpServer } from 'http';
+import path from 'path';
 import swaggerUi from 'swagger-ui-express';
 import { config } from './config';
 import swaggerSpec from './config/swagger';
@@ -118,6 +119,33 @@ class GuardianPulseServer {
     // Body parsing with size limits
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+    // Static file serving for local storage uploads
+    if (process.env['STORAGE_PROVIDER'] === 'local') {
+      const uploadDir = path.resolve(process.env['UPLOAD_DIR'] || './uploads');
+      this.app.use(
+        '/uploads',
+        express.static(uploadDir, {
+          maxAge: '1d', // Cache for 1 day
+          setHeaders: (res, filePath) => {
+            // Set appropriate headers for security
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+
+            // Content-Type based on file extension
+            const ext = path.extname(filePath).toLowerCase();
+            if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+              res.setHeader('Content-Type', `image/${ext.substring(1)}`);
+            } else if (['.mp4', '.mov', '.avi'].includes(ext)) {
+              res.setHeader('Content-Type', `video/${ext.substring(1)}`);
+            } else if (['.mp3', '.wav', '.ogg'].includes(ext)) {
+              res.setHeader('Content-Type', `audio/${ext.substring(1)}`);
+            }
+          },
+        }),
+      );
+      Logger.info(`📁 Static file serving enabled for uploads: ${uploadDir}`);
+    }
   }
 
   /**

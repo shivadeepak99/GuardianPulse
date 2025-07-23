@@ -16,60 +16,47 @@ export const registerUserSchema = z.object({
     .max(255, 'Email must not exceed 255 characters')
     .toLowerCase()
     .trim(),
-  
+
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must not exceed 128 characters')
     .regex(
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
-      'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character'
+      'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character',
     ),
-  
+
   firstName: z
     .string()
     .min(1, 'First name is required')
     .max(50, 'First name must not exceed 50 characters')
     .trim()
     .optional(),
-  
+
   lastName: z
     .string()
     .min(1, 'Last name is required')
     .max(50, 'Last name must not exceed 50 characters')
     .trim()
     .optional(),
-  
-  privacyLevel: z
-    .enum(['standard', 'high', 'maximum'])
-    .default('standard')
-    .optional(),
+
+  privacyLevel: z.enum(['standard', 'high', 'maximum']).default('standard').optional(),
 });
 
 /**
  * User Login Schema
  */
 export const loginUserSchema = z.object({
-  email: z
-    .string()
-    .email('Invalid email format')
-    .toLowerCase()
-    .trim(),
-  
-  password: z
-    .string()
-    .min(1, 'Password is required'),
+  email: z.string().email('Invalid email format').toLowerCase().trim(),
+
+  password: z.string().min(1, 'Password is required'),
 });
 
 /**
  * Password Reset Request Schema
  */
 export const passwordResetRequestSchema = z.object({
-  email: z
-    .string()
-    .email('Invalid email format')
-    .toLowerCase()
-    .trim(),
+  email: z.string().email('Invalid email format').toLowerCase().trim(),
 });
 
 /**
@@ -83,7 +70,7 @@ export const passwordResetSchema = z.object({
     .max(128, 'Password must not exceed 128 characters')
     .regex(
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
-      'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character'
+      'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character',
     ),
 });
 
@@ -97,17 +84,15 @@ export const updateUserProfileSchema = z.object({
     .max(50, 'First name must not exceed 50 characters')
     .trim()
     .optional(),
-  
+
   lastName: z
     .string()
     .min(1, 'Last name is required')
     .max(50, 'Last name must not exceed 50 characters')
     .trim()
     .optional(),
-  
-  privacyLevel: z
-    .enum(['standard', 'high', 'maximum'])
-    .optional(),
+
+  privacyLevel: z.enum(['standard', 'high', 'maximum']).optional(),
 });
 
 /**
@@ -121,18 +106,14 @@ export const createGuardianInvitationSchema = z.object({
     .max(255, 'Email must not exceed 255 characters')
     .toLowerCase()
     .trim(),
-  
-  message: z
-    .string()
-    .max(500, 'Message must not exceed 500 characters')
-    .trim()
-    .optional(),
-  
+
+  message: z.string().max(500, 'Message must not exceed 500 characters').trim().optional(),
+
   expiresAt: z
     .string()
     .datetime('Invalid date format')
     .optional()
-    .transform(val => val ? new Date(val) : undefined),
+    .transform(val => (val ? new Date(val) : undefined)),
 });
 
 /**
@@ -140,7 +121,7 @@ export const createGuardianInvitationSchema = z.object({
  */
 export const respondToInvitationSchema = z.object({
   status: z.enum(['ACCEPTED', 'DECLINED'], {
-    message: 'Status must be either ACCEPTED or DECLINED'
+    message: 'Status must be either ACCEPTED or DECLINED',
   }),
 });
 
@@ -149,11 +130,8 @@ export const respondToInvitationSchema = z.object({
  */
 export const updateGuardianRelationshipSchema = z.object({
   isActive: z.boolean().optional(),
-  
-  permissions: z
-    .array(z.string())
-    .max(20, 'Maximum 20 permissions allowed')
-    .optional(),
+
+  permissions: z.array(z.string()).max(20, 'Maximum 20 permissions allowed').optional(),
 });
 
 /**
@@ -161,34 +139,32 @@ export const updateGuardianRelationshipSchema = z.object({
  */
 export const guardianFilterSchema = z.object({
   status: z.enum(['PENDING', 'ACCEPTED', 'DECLINED']).optional(),
-  
+
   page: z
     .string()
     .transform(val => parseInt(val, 10))
     .refine(val => val > 0, 'Page must be greater than 0')
     .default(1),
-  
+
   limit: z
     .string()
     .transform(val => parseInt(val, 10))
     .refine(val => val > 0 && val <= 100, 'Limit must be between 1 and 100')
     .default(10),
-  
-  search: z
-    .string()
-    .max(100, 'Search term must not exceed 100 characters')
-    .trim()
-    .optional(),
+
+  search: z.string().max(100, 'Search term must not exceed 100 characters').trim().optional(),
 });
 
 /**
  * Location Schema (shared)
  */
-const locationSchema = z.object({
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
-  accuracy: z.number().positive().optional(),
-}).optional();
+const locationSchema = z
+  .object({
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    accuracy: z.number().positive().optional(),
+  })
+  .optional();
 
 /**
  * Incident Schemas
@@ -221,11 +197,13 @@ export const processSensorDataSchema = z.object({
     y: z.number(),
     z: z.number(),
   }),
-  gyroscope: z.object({
-    x: z.number(),
-    y: z.number(),
-    z: z.number(),
-  }).optional(),
+  gyroscope: z
+    .object({
+      x: z.number(),
+      y: z.number(),
+      z: z.number(),
+    })
+    .optional(),
   location: locationSchema,
   timestamp: z.string().datetime().optional(),
 });

@@ -38,16 +38,12 @@ export class AuthMiddleware {
   /**
    * Verify JWT token and authenticate user
    */
-  public static async authenticate(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
+  public static async authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       // Extract token from Authorization header
       const authHeader = req.headers.authorization;
-      
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+
+      if (!authHeader?.startsWith('Bearer ')) {
         res.status(401).json({
           success: false,
           message: 'Access denied. No token provided or invalid format.',
@@ -160,7 +156,7 @@ export class AuthMiddleware {
       next();
     } catch (error) {
       Logger.error('Authentication middleware error', error);
-      
+
       res.status(500).json({
         success: false,
         message: 'Internal server error during authentication.',
@@ -176,11 +172,11 @@ export class AuthMiddleware {
   public static async optionalAuthenticate(
     req: AuthenticatedRequest,
     res: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> {
     const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+
+    if (!authHeader?.startsWith('Bearer ')) {
       // No token provided, continue without authentication
       next();
       return;
@@ -195,11 +191,7 @@ export class AuthMiddleware {
    * Note: Can be extended when role system is implemented
    */
   public static requireRole(_requiredRole: string) {
-    return async (
-      req: AuthenticatedRequest,
-      res: Response,
-      next: NextFunction
-    ): Promise<void> => {
+    return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
       if (!req.user) {
         res.status(401).json({
           success: false,

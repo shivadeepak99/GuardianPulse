@@ -17,10 +17,10 @@ export class ApiError extends Error {
     statusCode: number = 500,
     errorCode?: string,
     details?: unknown,
-    isOperational: boolean = true
+    isOperational: boolean = true,
   ) {
     super(message);
-    
+
     this.name = this.constructor.name;
     this.statusCode = statusCode;
     this.isOperational = isOperational;
@@ -130,11 +130,12 @@ export class ErrorFactory {
    * Create validation error from Zod validation result
    */
   static fromZodError(zodError: any): ValidationError {
-    const details = zodError.errors?.map((err: any) => ({
-      field: err.path.join('.'),
-      message: err.message,
-      code: err.code,
-    })) || [];
+    const details =
+      zodError.errors?.map((err: any) => ({
+        field: err.path.join('.'),
+        message: err.message,
+        code: err.code,
+      })) || [];
 
     return new ValidationError('Request validation failed', details);
   }
@@ -150,22 +151,22 @@ export class ErrorFactory {
           field: prismaError.meta?.target,
           constraint: prismaError.meta?.constraint,
         });
-      
+
       case 'P2025':
         return new NotFoundError('Record', {
           model: prismaError.meta?.cause,
         });
-      
+
       case 'P2003':
         return new ValidationError('Foreign key constraint violation', {
           field: prismaError.meta?.field_name,
         });
-      
+
       case 'P2016':
         return new ValidationError('Query interpretation error', {
           details: prismaError.meta?.details,
         });
-      
+
       default:
         return new DatabaseError('Database operation failed', {
           code: prismaError.code,
@@ -179,18 +180,15 @@ export class ErrorFactory {
    */
   static createAuthError(reason: string): AuthenticationError {
     const messages = {
-      'missing_token': 'Authentication token is required',
-      'invalid_token': 'Authentication token is invalid',
-      'expired_token': 'Authentication token has expired',
-      'invalid_credentials': 'Invalid email or password',
-      'account_deactivated': 'Account has been deactivated',
-      'email_not_verified': 'Email address is not verified',
+      missing_token: 'Authentication token is required',
+      invalid_token: 'Authentication token is invalid',
+      expired_token: 'Authentication token has expired',
+      invalid_credentials: 'Invalid email or password',
+      account_deactivated: 'Account has been deactivated',
+      email_not_verified: 'Email address is not verified',
     };
 
-    return new AuthenticationError(
-      messages[reason as keyof typeof messages] || 'Authentication failed',
-      { reason }
-    );
+    return new AuthenticationError(messages[reason as keyof typeof messages] || 'Authentication failed', { reason });
   }
 }
 

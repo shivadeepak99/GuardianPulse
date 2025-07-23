@@ -64,12 +64,12 @@ export class DatabaseService {
     try {
       const prisma = DatabaseService.getInstance();
       const startTime = Date.now();
-      
+
       // Simple health check query
       await prisma.$queryRaw`SELECT 1`;
-      
+
       const latency = Date.now() - startTime;
-      
+
       return {
         connected: true,
         latency,
@@ -93,20 +93,20 @@ export class DatabaseService {
   }> {
     try {
       const prisma = DatabaseService.getInstance();
-      
+
       // Get user count
       const userCount = await prisma.user.count();
-      
+
       // Get database size (PostgreSQL specific)
       const sizeResult = await prisma.$queryRaw<[{ size: string }]>`
         SELECT pg_size_pretty(pg_database_size(current_database())) as size
       `;
-      
+
       // Get database uptime (PostgreSQL specific)
       const uptimeResult = await prisma.$queryRaw<[{ uptime: string }]>`
         SELECT date_trunc('second', now() - pg_postmaster_start_time()) as uptime
       `;
-      
+
       return {
         userCount,
         databaseSize: sizeResult[0]?.size || 'Unknown',

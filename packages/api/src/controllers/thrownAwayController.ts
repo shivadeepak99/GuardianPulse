@@ -64,19 +64,19 @@ export class ThrownAwayController {
   /**
    * Handle thrown-away incident report
    * POST /api/v1/incidents/thrown-away
-   * 
+   *
    * This endpoint MUST be extremely fast as it may be the last signal from the device
    */
   public handleThrownAwayIncident = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const startTime = Date.now();
-    
+
     try {
       const userId = req.user?.id;
       if (!userId) {
-        res.status(401).json({ 
-          success: false, 
+        res.status(401).json({
+          success: false,
           error: 'User not authenticated',
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
         return;
       }
@@ -85,10 +85,10 @@ export class ThrownAwayController {
 
       // Validate critical fields
       if (!incidentData.timestamp || !incidentData.pattern || !incidentData.severity) {
-        res.status(400).json({ 
-          success: false, 
+        res.status(400).json({
+          success: false,
           error: 'Missing critical incident data',
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
         return;
       }
@@ -115,10 +115,12 @@ export class ThrownAwayController {
       setImmediate(async () => {
         try {
           // Prepare critical alert message
-          const alertLocation = incidentData.location ? {
-            latitude: incidentData.location.latitude,
-            longitude: incidentData.location.longitude,
-          } : undefined;
+          const alertLocation = incidentData.location
+            ? {
+                latitude: incidentData.location.latitude,
+                longitude: incidentData.location.longitude,
+              }
+            : undefined;
 
           const alertMessage = this.formatCriticalThrownAwayMessage({
             wardName: req.user?.firstName || 'Unknown Ward',
@@ -154,7 +156,6 @@ export class ThrownAwayController {
             incidentId,
             alertsProcessingTime: Date.now() - startTime,
           });
-
         } catch (alertError) {
           Logger.error('CRITICAL ERROR: Failed to send thrown-away alerts', {
             error: alertError,
@@ -163,7 +164,6 @@ export class ThrownAwayController {
           });
         }
       });
-
     } catch (error) {
       Logger.error('CRITICAL ERROR in thrown-away incident handler', {
         error,
@@ -194,7 +194,7 @@ export class ThrownAwayController {
     deviceInfo: string;
     severity: string;
   }): string {
-    const locationText = context.location 
+    const locationText = context.location
       ? `Last location: ${context.location.latitude.toFixed(4)}, ${context.location.longitude.toFixed(4)}`
       : 'Location unavailable';
 
@@ -231,7 +231,7 @@ Reply STOP to opt out`;
       const testMessage = this.formatCriticalThrownAwayMessage({
         wardName: req.user?.firstName || 'Test Ward',
         timestamp: new Date().toLocaleString(),
-        location: { latitude: 40.7128, longitude: -74.0060 },
+        location: { latitude: 40.7128, longitude: -74.006 },
         confidence: '95.0',
         deviceInfo: 'Test Device',
         severity: 'CRITICAL',
@@ -254,7 +254,6 @@ Reply STOP to opt out`;
         message: 'Test thrown-away alert sent to guardians',
         timestamp: Date.now(),
       });
-
     } catch (error) {
       Logger.error('Error testing thrown-away system', { error, userId: req.user?.id });
       res.status(500).json({ error: 'Failed to test thrown-away system' });
