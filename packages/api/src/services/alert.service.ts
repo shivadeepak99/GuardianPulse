@@ -5,6 +5,7 @@ import { Logger } from '../utils';
  * Alert Types Enum
  * Defines the different types of alerts that can be sent to guardians
  */
+
 export enum AlertType {
   SOS_TRIGGERED = 'SOS_TRIGGERED',
   FALL_DETECTED = 'FALL_DETECTED',
@@ -16,6 +17,8 @@ export enum AlertType {
   UNUSUAL_ACTIVITY = 'UNUSUAL_ACTIVITY',
   EMERGENCY_CONTACT = 'EMERGENCY_CONTACT',
   SYSTEM_ALERT = 'SYSTEM_ALERT',
+  THROWN_AWAY = 'THROWN_AWAY',
+  FAKE_SHUTDOWN = 'FAKE_SHUTDOWN',
 }
 
 /**

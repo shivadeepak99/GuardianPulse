@@ -2,6 +2,7 @@ import { Router } from 'express';
 import userRoutes from './user.routes';
 import guardianRoutes from './guardians';
 import evidenceRoutes from './evidence';
+import incidentRoutes from './incidents';
 
 /**
  * Main API Routes
@@ -17,6 +18,9 @@ routes.use('/guardian', guardianRoutes);
 
 // Mount evidence routes
 routes.use('/evidence', evidenceRoutes);
+
+// Mount incident routes
+routes.use('/incidents', incidentRoutes);
 
 /**
  * @swagger

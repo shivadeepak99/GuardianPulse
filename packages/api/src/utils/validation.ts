@@ -181,6 +181,40 @@ export const guardianFilterSchema = z.object({
     .optional(),
 });
 
+/**
+ * Location Schema (shared)
+ */
+const locationSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  accuracy: z.number().positive().optional(),
+}).optional();
+
+/**
+ * Incident Schemas
+ */
+export const createIncidentSchema = z.object({
+  type: z.enum(['SOS_TRIGGERED', 'FALL_DETECTED', 'THROWN_AWAY', 'FAKE_SHUTDOWN']),
+  location: locationSchema,
+  description: z.string().max(500).optional(),
+});
+
+export const manualSOSSchema = z.object({
+  location: locationSchema,
+  message: z.string().max(500).optional(),
+});
+
+export const thrownAwaySchema = z.object({
+  confidence: z.number().min(0).max(100),
+  sensorData: z.record(z.any()).optional(),
+  location: locationSchema,
+});
+
+export const fakeShutdownSchema = z.object({
+  location: locationSchema,
+  deviceInfo: z.record(z.any()).optional(),
+});
+
 // Type exports for TypeScript inference
 export type RegisterUserInput = z.infer<typeof registerUserSchema>;
 export type LoginUserInput = z.infer<typeof loginUserSchema>;
@@ -191,3 +225,7 @@ export type CreateGuardianInvitationInput = z.infer<typeof createGuardianInvitat
 export type RespondToInvitationInput = z.infer<typeof respondToInvitationSchema>;
 export type UpdateGuardianRelationshipInput = z.infer<typeof updateGuardianRelationshipSchema>;
 export type GuardianFilterInput = z.infer<typeof guardianFilterSchema>;
+export type CreateIncidentInput = z.infer<typeof createIncidentSchema>;
+export type ManualSOSInput = z.infer<typeof manualSOSSchema>;
+export type ThrownAwayInput = z.infer<typeof thrownAwaySchema>;
+export type FakeShutdownInput = z.infer<typeof fakeShutdownSchema>;
