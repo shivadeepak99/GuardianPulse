@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guardian Pulse - Test Incident Endpoints</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #d32f2f;
+            text-align: center;
+        }
+        h2 {
+            color: #1976d2;
+            border-bottom: 2px solid #e3f2fd;
+            padding-bottom: 5px;
+        }
+        button {
+            background-color: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #1565c0;
+        }
+        button.emergency {
+            background-color: #d32f2f;
+        }
+        button.emergency:hover {
+            background-color: #c62828;
+        }
+        .result {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .error {
+            background-color: #ffebee;
+            border-color: #f44336;
+            color: #c62828;
+        }
+        .success {
+            background-color: #e8f5e8;
+            border-color: #4caf50;
+            color: #2e7d32;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔒 Guardian Pulse Incident Testing</h1>
+    
+    <div class="container">
+        <h2>🔑 Authentication</h2>
+        <div class="form-group">
+            <label for="token">Bearer Token:</label>
+            <input type="text" id="token" placeholder="Enter your JWT token here">
+        </div>
+        <button onclick="testAuth()">Test Authentication</button>
+        <div id="authResult" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="container">
+        <h2>🚨 Manual SOS Test</h2>
+        <div class="form-group">
+            <label for="sosMessage">Emergency Message (optional):</label>
+            <textarea id="sosMessage" rows="3" placeholder="Describe the emergency situation..."></textarea>
+        </div>
+        <div class="form-group">
+            <label>Location (optional):</label>
+            <input type="number" id="sosLat" placeholder="Latitude" step="any">
+            <input type="number" id="sosLng" placeholder="Longitude" step="any">
+        </div>
+        <button class="emergency" onclick="triggerManualSOS()">🆘 TRIGGER SOS</button>
+        <div id="sosResult" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="container">
+        <h2>📱 Sensor Data Processing Test</h2>
+        <div class="form-group">
+            <label>Accelerometer Data:</label>
+            <input type="number" id="accelX" placeholder="X acceleration" value="0.5" step="any">
+            <input type="number" id="accelY" placeholder="Y acceleration" value="9.8" step="any">
+            <input type="number" id="accelZ" placeholder="Z acceleration" value="0.2" step="any">
+        </div>
+        <div class="form-group">
+            <label>Gyroscope Data (optional):</label>
+            <input type="number" id="gyroX" placeholder="X rotation" value="0.1" step="any">
+            <input type="number" id="gyroY" placeholder="Y rotation" value="0.0" step="any">
+            <input type="number" id="gyroZ" placeholder="Z rotation" value="0.05" step="any">
+        </div>
+        <div class="form-group">
+            <label>Location:</label>
+            <input type="number" id="sensorLat" placeholder="Latitude" value="37.7749" step="any">
+            <input type="number" id="sensorLng" placeholder="Longitude" value="-122.4194" step="any">
+        </div>
+        <button onclick="testNormalSensorData()">📊 Test Normal Data</button>
+        <button class="emergency" onclick="testFallSensorData()">💥 Simulate Fall</button>
+        <div id="sensorResult" class="result" style="display:none;"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api/v1';
+        
+        function getToken() {
+            return document.getElementById('token').value.trim();
+        }
+        
+        function displayResult(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result ${isError ? 'error' : 'success'}`;
+            element.textContent = JSON.stringify(data, null, 2);
+        }
+        
+        async function makeRequest(endpoint, method = 'GET', body = null) {
+            const token = getToken();
+            if (!token) {
+                throw new Error('Please enter your authentication token first');
+            }
+            
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            };
+            
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+            
+            const response = await fetch(`${API_BASE}${endpoint}`, options);
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${data.message || 'Request failed'}`);
+            }
+            
+            return data;
+        }
+        
+        async function testAuth() {
+            try {
+                const result = await makeRequest('/health');
+                displayResult('authResult', { 
+                    status: 'Authentication successful',
+                    health: result 
+                });
+            } catch (error) {
+                displayResult('authResult', { 
+                    error: error.message 
+                }, true);
+            }
+        }
+        
+        async function triggerManualSOS() {
+            try {
+                const message = document.getElementById('sosMessage').value.trim();
+                const lat = parseFloat(document.getElementById('sosLat').value);
+                const lng = parseFloat(document.getElementById('sosLng').value);
+                
+                const body = {};
+                
+                if (message) {
+                    body.message = message;
+                }
+                
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    body.location = {
+                        latitude: lat,
+                        longitude: lng,
+                        accuracy: 10
+                    };
+                }
+                
+                const result = await makeRequest('/incidents/manual-sos', 'POST', body);
+                displayResult('sosResult', result);
+            } catch (error) {
+                displayResult('sosResult', { 
+                    error: error.message 
+                }, true);
+            }
+        }
+        
+        async function processSensorData(accelData, isSimulatedFall = false) {
+            try {
+                const lat = parseFloat(document.getElementById('sensorLat').value) || 37.7749;
+                const lng = parseFloat(document.getElementById('sensorLng').value) || -122.4194;
+                const gyroX = parseFloat(document.getElementById('gyroX').value) || 0;
+                const gyroY = parseFloat(document.getElementById('gyroY').value) || 0;
+                const gyroZ = parseFloat(document.getElementById('gyroZ').value) || 0;
+                
+                const body = {
+                    accelerometer: accelData,
+                    gyroscope: {
+                        x: gyroX,
+                        y: gyroY,
+                        z: gyroZ
+                    },
+                    location: {
+                        latitude: lat,
+                        longitude: lng,
+                        accuracy: 5
+                    },
+                    timestamp: new Date().toISOString()
+                };
+                
+                const result = await makeRequest('/incidents/process-sensor-data', 'POST', body);
+                displayResult('sensorResult', {
+                    testType: isSimulatedFall ? 'Simulated Fall' : 'Normal Data',
+                    ...result
+                });
+            } catch (error) {
+                displayResult('sensorResult', { 
+                    error: error.message 
+                }, true);
+            }
+        }
+        
+        function testNormalSensorData() {
+            const accelX = parseFloat(document.getElementById('accelX').value) || 0.5;
+            const accelY = parseFloat(document.getElementById('accelY').value) || 9.8;
+            const accelZ = parseFloat(document.getElementById('accelZ').value) || 0.2;
+            
+            processSensorData({
+                x: accelX,
+                y: accelY,
+                z: accelZ
+            }, false);
+        }
+        
+        function testFallSensorData() {
+            // Simulate a fall with high acceleration values
+            processSensorData({
+                x: 15.5,  // High X acceleration
+                y: 25.2,  // Very high Y acceleration (exceeds fall threshold)
+                z: 18.7   // High Z acceleration
+            }, true);
+        }
+        
+        // Auto-populate location if geolocation is available
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                document.getElementById('sosLat').value = position.coords.latitude.toFixed(6);
+                document.getElementById('sosLng').value = position.coords.longitude.toFixed(6);
+                document.getElementById('sensorLat').value = position.coords.latitude.toFixed(6);
+                document.getElementById('sensorLng').value = position.coords.longitude.toFixed(6);
+            });
+        }
+    </script>
+</body>
+</html>

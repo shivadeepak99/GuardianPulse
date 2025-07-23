@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveAudio } from '../hooks/useLiveAudio';
+import IncidentList from '../components/IncidentList';
+import IncidentDetails from '../components/IncidentDetails';
+import { incidentAPI } from '../services/api';
+import type { Incident } from '../services/api';
 
 interface Ward {
   id: string;
@@ -16,6 +20,9 @@ interface Ward {
 const DashboardPage: React.FC = () => {
   const [wards, setWards] = useState<Ward[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedWardId, setSelectedWardId] = useState<string | null>(null);
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [activeTab, setActiveTab] = useState<'wards' | 'incidents'>('wards');
   const navigate = useNavigate();
 
   // Live Audio Hook
@@ -69,6 +76,29 @@ const DashboardPage: React.FC = () => {
     // TODO: Implement logout logic
     localStorage.removeItem('authToken');
     navigate('/login');
+  };
+
+  // Incident handling functions
+  const handleIncidentClick = (incident: Incident) => {
+    setSelectedIncident(incident);
+  };
+
+  const handleIncidentClose = () => {
+    setSelectedIncident(null);
+  };
+
+  const handleUpdateIncidentStatus = async (incidentId: string, status: 'ACTIVE' | 'RESOLVED' | 'DISMISSED') => {
+    try {
+      await incidentAPI.updateIncidentStatus(incidentId, status);
+      // Update the selected incident if it's the one being updated
+      if (selectedIncident && selectedIncident.id === incidentId) {
+        setSelectedIncident({ ...selectedIncident, status });
+      }
+      // Optionally trigger a refresh of the incident list
+    } catch (error) {
+      console.error('Failed to update incident status:', error);
+      // Handle error (show notification, etc.)
+    }
   };
 
   const getStatusColor = (status: Ward['status']) => {
@@ -151,7 +181,7 @@ const DashboardPage: React.FC = () => {
                     max="1"
                     step="0.1"
                     value={audioVolume}
-                    onChange={(e) => setAudioVolume(parseFloat(e.target.value))}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAudioVolume(parseFloat(e.target.value))}
                     className="w-16 h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer"
                   />
                 </div>
@@ -188,60 +218,138 @@ const DashboardPage: React.FC = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
+          {/* Tab Navigation */}
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Your Wards</h2>
-            
-            {wards.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-gray-500 text-lg">No wards found</div>
-                <p className="text-gray-400 mt-2">
-                  Invite someone to be your ward to get started
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {wards.map((ward) => (
-                  <div
-                    key={ward.id}
-                    className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-200"
-                  >
-                    <div className="px-4 py-5 sm:p-6">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg leading-6 font-medium text-gray-900">
-                          {ward.name}
-                        </h3>
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                            ward.status
-                          )}`}
-                        >
-                          {getStatusText(ward.status)}
-                        </span>
-                      </div>
-                      <div className="mt-2">
-                        <p className="text-sm text-gray-500">
-                          Last seen: {ward.lastSeen}
-                        </p>
-                      </div>
-                      <div className="mt-4 flex space-x-2">
-                        <button className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium">
-                          View Details
-                        </button>
-                        {ward.status === 'online' && (
-                          <button className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm font-medium">
-                            Start Live Session
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
+                <button
+                  onClick={() => setActiveTab('wards')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'wards'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Your Wards ({wards.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('incidents')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'incidents'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Incidents
+                </button>
+              </nav>
+            </div>
           </div>
 
+          {/* Tab Content */}
+          {activeTab === 'wards' ? (
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Your Wards</h2>
+              
+              {wards.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-gray-500 text-lg">No wards found</div>
+                  <p className="text-gray-400 mt-2">
+                    Invite someone to be your ward to get started
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {wards.map((ward: Ward) => (
+                    <div
+                      key={ward.id}
+                      className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-200"
+                    >
+                      <div className="px-4 py-5 sm:p-6">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg leading-6 font-medium text-gray-900">
+                            {ward.name}
+                          </h3>
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                              ward.status
+                            )}`}
+                          >
+                            {getStatusText(ward.status)}
+                          </span>
+                        </div>
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-500">
+                            Last seen: {ward.lastSeen}
+                          </p>
+                        </div>
+                        <div className="mt-4 flex space-x-2">
+                          <button 
+                            onClick={() => {
+                              setSelectedWardId(ward.id);
+                              setActiveTab('incidents');
+                            }}
+                            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium"
+                          >
+                            View Incidents
+                          </button>
+                          {ward.status === 'online' && (
+                            <button className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm font-medium">
+                              Start Live Session
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Incident History</h2>
+              
+              {/* Ward Selection for Incidents */}
+              {wards.length > 0 && (
+                <div className="mb-4">
+                  <label htmlFor="ward-select" className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Ward:
+                  </label>
+                  <select
+                    id="ward-select"
+                    value={selectedWardId || ''}
+                    onChange={(e) => setSelectedWardId(e.target.value || null)}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a ward to view incidents</option>
+                    {wards.map((ward) => (
+                      <option key={ward.id} value={ward.id}>
+                        {ward.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              {/* Incidents List */}
+              {selectedWardId ? (
+                <IncidentList
+                  wardId={selectedWardId}
+                  onIncidentClick={handleIncidentClick}
+                />
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-gray-500 text-lg">Select a ward to view incidents</div>
+                  <p className="text-gray-400 mt-2">
+                    Choose a ward from the dropdown above to see their incident history
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Quick Actions */}
-          <div className="bg-white shadow rounded-lg">
+          <div className="bg-white shadow rounded-lg mt-8">
             <div className="px-4 py-5 sm:p-6">
               <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
                 Quick Actions
@@ -261,6 +369,15 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Incident Details Modal */}
+      {selectedIncident && (
+        <IncidentDetails
+          incident={selectedIncident}
+          onClose={handleIncidentClose}
+          onUpdateStatus={handleUpdateIncidentStatus}
+        />
+      )}
     </div>
   );
 };

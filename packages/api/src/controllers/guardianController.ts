@@ -335,7 +335,7 @@ export class GuardianController {
         orderBy: { createdAt: 'desc' }
       });
 
-      const wards = relationships.map(rel => rel.ward);
+      const wards = relationships.map((rel: any) => rel.ward);
 
       return res.json({
         success: true,
@@ -379,7 +379,7 @@ export class GuardianController {
         orderBy: { createdAt: 'desc' }
       });
 
-      const guardians = relationships.map(rel => rel.guardian);
+      const guardians = relationships.map((rel: any) => rel.guardian);
 
       return res.json({
         success: true,

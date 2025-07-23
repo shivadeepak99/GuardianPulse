@@ -206,13 +206,28 @@ export const manualSOSSchema = z.object({
 
 export const thrownAwaySchema = z.object({
   confidence: z.number().min(0).max(100),
-  sensorData: z.record(z.any()).optional(),
+  sensorData: z.record(z.string(), z.any()).optional(),
   location: locationSchema,
 });
 
 export const fakeShutdownSchema = z.object({
   location: locationSchema,
-  deviceInfo: z.record(z.any()).optional(),
+  deviceInfo: z.record(z.string(), z.any()).optional(),
+});
+
+export const processSensorDataSchema = z.object({
+  accelerometer: z.object({
+    x: z.number(),
+    y: z.number(),
+    z: z.number(),
+  }),
+  gyroscope: z.object({
+    x: z.number(),
+    y: z.number(),
+    z: z.number(),
+  }).optional(),
+  location: locationSchema,
+  timestamp: z.string().datetime().optional(),
 });
 
 // Type exports for TypeScript inference
@@ -229,3 +244,4 @@ export type CreateIncidentInput = z.infer<typeof createIncidentSchema>;
 export type ManualSOSInput = z.infer<typeof manualSOSSchema>;
 export type ThrownAwayInput = z.infer<typeof thrownAwaySchema>;
 export type FakeShutdownInput = z.infer<typeof fakeShutdownSchema>;
+export type ProcessSensorDataInput = z.infer<typeof processSensorDataSchema>;

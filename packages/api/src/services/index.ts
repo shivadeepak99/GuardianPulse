@@ -4,7 +4,9 @@ import DatabaseService from './database.service';
 // Export individual services for easy importing
 export { S3Service } from './s3.service';
 export { AlertService, AlertType, AlertPriority } from './alert.service';
+export { AnomalyDetectionService } from './anomaly.service';
 export type { AlertData } from './alert.service';
+export type { SensorData } from './anomaly.service';
 
 /**
  * Application Service

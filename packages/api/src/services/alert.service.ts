@@ -1,5 +1,7 @@
 import { DatabaseService } from './database.service';
 import { Logger } from '../utils';
+import { config } from '../config';
+import { Twilio } from 'twilio';
 
 /**
  * Alert Types Enum
@@ -60,7 +62,7 @@ interface GuardianInfo {
   email: string;
   firstName: string | null;
   lastName: string | null;
-  phone?: string | null;
+  phoneNumber: string | null;
   preferredNotificationMethod?: string;
 }
 
@@ -79,14 +81,36 @@ interface AlertDeliveryResult {
  * Foundational Alert Service
  * 
  * This service provides a centralized way to send alerts to guardians.
- * Initially implements console logging but is structured to easily add
- * real notification channels (Email, SMS, Push) in the future.
+ * Supports multiple notification channels: Console logging, SMS via Twilio,
+ * and can be extended for Email and Push notifications.
  */
 export class AlertService {
   private db: ReturnType<typeof DatabaseService.getInstance>;
+  private twilioClient: Twilio | null = null;
 
   constructor() {
     this.db = DatabaseService.getInstance();
+    this.initializeTwilio();
+  }
+
+  /**
+   * Initialize Twilio client if credentials are available
+   */
+  private initializeTwilio(): void {
+    if (config.twilio.accountSid && config.twilio.authToken) {
+      try {
+        this.twilioClient = new Twilio(
+          config.twilio.accountSid,
+          config.twilio.authToken
+        );
+        Logger.info('Twilio client initialized successfully');
+      } catch (error) {
+        Logger.error('Failed to initialize Twilio client:', error);
+        this.twilioClient = null;
+      }
+    } else {
+      Logger.warn('Twilio credentials not configured. SMS alerts will be disabled.');
+    }
   }
 
   /**
@@ -120,8 +144,14 @@ export class AlertService {
       // Prepare alert context
       const alertContext = this.prepareAlertContext(guardian, alertType, data);
       
-      // For now, use console logging (will be extended with real channels)
-      const deliveryResult = await this.deliverViaConsole(guardian, alertType, alertContext);
+      // Try to send SMS first, fall back to console
+      let deliveryResult: AlertDeliveryResult;
+      
+      if (guardian.phoneNumber && this.twilioClient) {
+        deliveryResult = await this.deliverViaSMS(guardian, alertType, alertContext);
+      } else {
+        deliveryResult = await this.deliverViaConsole(guardian, alertType, alertContext);
+      }
       
       // Log the alert for auditing
       this.logAlertDelivery(guardianId, alertType, data, deliveryResult);
@@ -250,6 +280,7 @@ export class AlertService {
           email: true,
           firstName: true,
           lastName: true,
+          phoneNumber: true,
         },
       });
       
@@ -278,6 +309,7 @@ export class AlertService {
               email: true,
               firstName: true,
               lastName: true,
+              phoneNumber: true,
             },
           },
         },
@@ -390,6 +422,99 @@ export class AlertService {
       method: 'console',
       timestamp: new Date(),
     };
+  }
+
+  /**
+   * Deliver alert via SMS using Twilio
+   * @private
+   */
+  private async deliverViaSMS(
+    guardian: GuardianInfo,
+    alertType: AlertType,
+    context: any
+  ): Promise<AlertDeliveryResult> {
+    try {
+      if (!this.twilioClient) {
+        throw new Error('Twilio client not available');
+      }
+
+      if (!guardian.phoneNumber) {
+        throw new Error('Guardian phone number not available');
+      }
+
+      if (!config.twilio.phoneNumber) {
+        throw new Error('Twilio phone number not configured');
+      }
+
+      // Format SMS message
+      const smsMessage = this.formatSMSAlert(alertType, context);
+      
+      // Send SMS via Twilio
+      const message = await this.twilioClient.messages.create({
+        body: smsMessage,
+        from: config.twilio.phoneNumber,
+        to: guardian.phoneNumber,
+      });
+
+      Logger.info(`SMS alert sent to guardian ${guardian.id}: ${message.sid}`);
+
+      return {
+        guardianId: guardian.id,
+        success: true,
+        method: 'sms',
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      Logger.error(`Failed to send SMS to guardian ${guardian.id}:`, error);
+      
+      // Fall back to console logging
+      return await this.deliverViaConsole(guardian, alertType, context);
+    }
+  }
+
+  /**
+   * Format alert message for SMS
+   * @private
+   */
+  private formatSMSAlert(alertType: AlertType, context: any): string {
+    const wardName = context.ward.name || 'Unknown Ward';
+    const dashboardUrl = context.dashboardLink || config.app.dashboardUrl;
+    
+    let alertTypeText = '';
+    switch (alertType) {
+      case AlertType.SOS_TRIGGERED:
+        alertTypeText = 'SOS EMERGENCY';
+        break;
+      case AlertType.FALL_DETECTED:
+        alertTypeText = 'FALL DETECTED';
+        break;
+      case AlertType.PANIC_BUTTON:
+        alertTypeText = 'PANIC BUTTON';
+        break;
+      case AlertType.THROWN_AWAY:
+        alertTypeText = 'DEVICE THROWN AWAY';
+        break;
+      case AlertType.FAKE_SHUTDOWN:
+        alertTypeText = 'FAKE SHUTDOWN DETECTED';
+        break;
+      default:
+        alertTypeText = alertType.replace('_', ' ');
+    }
+
+    let message = `🚨 GuardianPulse Alert: ${alertTypeText} - ${wardName}`;
+    
+    if (context.location) {
+      message += ` at location ${context.location.latitude.toFixed(4)}, ${context.location.longitude.toFixed(4)}`;
+    }
+    
+    message += `. Check your dashboard: ${dashboardUrl}`;
+    
+    // SMS has a 160 character limit, so we might need to truncate
+    if (message.length > 160) {
+      message = message.substring(0, 157) + '...';
+    }
+    
+    return message;
   }
 
   /**

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { Logger } from '../utils';
 import { ApiError, isApiError, isOperationalError } from '../utils/errors';
 
@@ -43,6 +44,41 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
   });
 
   next();
+};
+
+/**
+ * Request Validation Middleware
+ * Validates request body against provided Zod schema
+ */
+export const validateRequest = (schema: z.ZodSchema) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      const validatedData = schema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const formattedErrors = error.issues.map(err => ({
+          field: err.path.join('.'),
+          message: err.message,
+          code: err.code
+        }));
+        
+        Logger.warn('Request validation failed', {
+          url: req.url,
+          method: req.method,
+          errors: formattedErrors
+        });
+        
+        res.status(400).json({
+          message: 'Validation failed',
+          errors: formattedErrors
+        });
+        return;
+      }
+      next(error);
+    }
+  };
 };
 
 /**

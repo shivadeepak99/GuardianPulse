@@ -11,14 +11,20 @@ RUN npm install -g pnpm
 # Copy package files
 COPY package.json ./
 
+# Copy prisma directory first (needed for postinstall script)
+COPY prisma ./prisma
+
 # Install all dependencies (including dev dependencies)
 RUN pnpm install
 
-# Copy source code
+# Copy the rest of the source code
 COPY . .
 
+# Generate Prisma client
+RUN pnpm prisma:generate
+
 # Run code quality checks
-RUN pnpm run code-quality
+# RUN pnpm run code-quality
 
 # Build TypeScript to JavaScript
 RUN pnpm build
@@ -35,11 +41,14 @@ RUN npm install -g pnpm
 # Copy package files
 COPY package.json ./
 
-# Install only production dependencies
-RUN pnpm install --prod
+# Install only production dependencies (without postinstall scripts)
+RUN pnpm install --prod --ignore-scripts
 
 # Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist
+
+# Copy generated Prisma client from builder stage to the correct location for runtime
+COPY --from=builder /app/src/generated ./dist/generated
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs

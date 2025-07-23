@@ -233,7 +233,7 @@ export const useLiveAudio = (): UseLiveAudioReturn => {
 
       socket.on('audio-chunk-received', handleAudioChunk);
 
-      socket.on('connect_error', (error) => {
+      socket.on('connect_error', (error: Error) => {
         setState(prev => ({ 
           ...prev, 
           isConnected: false,

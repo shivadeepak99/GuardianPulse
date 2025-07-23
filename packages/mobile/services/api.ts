@@ -187,5 +187,95 @@ export const authAPI = {
   }
 };
 
+// Impact Detection interfaces
+export interface ImpactEventData {
+  timestamp: number;
+  accelerometerData: Array<{
+    x: number;
+    y: number;
+    z: number;
+    timestamp: number;
+  }>;
+  gyroscopeData: Array<{
+    x: number;
+    y: number;
+    z: number;
+    timestamp: number;
+  }>;
+  pattern: {
+    throwPhase: boolean;
+    tumblePhase: boolean;
+    impactPhase: boolean;
+    confidence: number;
+  };
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  location?: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+  };
+  deviceInfo?: {
+    model: string;
+    os: string;
+    appVersion: string;
+  };
+}
+
+export interface ImpactDetectionResponse {
+  success: boolean;
+  impactId: string;
+  alertsSent: number;
+  message: string;
+}
+
+// Impact Detection API
+export const impactAPI = {
+  // Report impact detection event
+  async reportImpact(eventData: ImpactEventData): Promise<ImpactDetectionResponse> {
+    try {
+      const response = await apiClient.post('/impact/report', eventData);
+      return response.data;
+    } catch (error) {
+      console.error('Error reporting impact:', error);
+      throw error;
+    }
+  },
+
+  // Get impact history for the current user
+  async getImpactHistory(limit: number = 50): Promise<ImpactEventData[]> {
+    try {
+      const response = await apiClient.get(`/impact/history?limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting impact history:', error);
+      throw error;
+    }
+  },
+
+  // Update impact status (false alarm, confirmed, etc.)
+  async updateImpactStatus(
+    impactId: string, 
+    status: 'CONFIRMED' | 'FALSE_ALARM' | 'RESOLVED'
+  ): Promise<void> {
+    try {
+      await apiClient.patch(`/impact/${impactId}/status`, { status });
+    } catch (error) {
+      console.error('Error updating impact status:', error);
+      throw error;
+    }
+  },
+
+  // Test impact detection system
+  async testImpactDetection(): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await apiClient.post('/impact/test');
+      return response.data;
+    } catch (error) {
+      console.error('Error testing impact detection:', error);
+      throw error;
+    }
+  }
+};
+
 // Export the configured axios instance for other API calls
 export default apiClient;

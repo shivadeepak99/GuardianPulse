@@ -18,6 +18,19 @@ enum InvitationStatus {
   DECLINED
 }
 
+enum IncidentType {
+  FALL_DETECTED
+  SOS_MANUAL
+  THROWN_AWAY
+  FAKE_SHUTDOWN
+}
+
+enum EvidenceType {
+  AUDIO
+  VIDEO
+  SENSOR_LOG
+}
+
 // User Model
 // Stores user account information for the GuardianPulse platform
 model User {
@@ -26,6 +39,7 @@ model User {
   password  String
   firstName String?
   lastName  String?
+  phoneNumber String?  // For SMS notifications
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -46,6 +60,9 @@ model User {
   
   // Guardian relationships where this user is the guardian (protecting others)
   asGuardian          GuardianRelationship[] @relation("GuardianUser")
+  
+  // Incidents where this user is the ward (subject of the incident)
+  incidents           Incident[] @relation("UserIncidents")
   
   // Indexes for performance
   @@map("users")
@@ -108,8 +125,66 @@ model GuardianRelationship {
   @@unique([wardId, guardianId], name: "unique_ward_guardian_pair")
 }
 
+// Incident Model
+// Captures critical safety events and emergencies
+model Incident {
+  id            String        @id @default(cuid())
+  wardId        String
+  type          IncidentType
+  isActive      Boolean       @default(true)
+  latitude      Float?
+  longitude     Float?
+  triggeredAt   DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  // Relations
+  ward          User          @relation("UserIncidents", fields: [wardId], references: [id], onDelete: Cascade)
+  evidence      Evidence[]    @relation("IncidentEvidence")
+  
+  // Additional incident metadata
+  description   String?       // Optional description of the incident
+  severity      String        @default("medium") // low, medium, high, critical
+  resolvedAt    DateTime?     // When the incident was resolved
+  resolvedBy    String?       // ID of user who resolved the incident
+  
+  // Indexes for performance
+  @@map("incidents")
+  @@index([wardId])
+  @@index([type])
+  @@index([isActive])
+  @@index([triggeredAt])
+  @@index([severity])
+}
+
+// Evidence Model
+// Stores evidence files and data associated with incidents
+model Evidence {
+  id          String        @id @default(cuid())
+  incidentId  String
+  type        EvidenceType
+  storageUrl  String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  // Relations
+  incident    Incident      @relation("IncidentEvidence", fields: [incidentId], references: [id], onDelete: Cascade)
+  
+  // Additional evidence metadata
+  fileName    String?       // Original file name
+  fileSize    Int?          // File size in bytes
+  mimeType    String?       // MIME type of the file
+  checksum    String?       // File integrity checksum
+  metadata    Json?         // Additional metadata as JSON
+  
+  // Indexes for performance
+  @@map("evidence")
+  @@index([incidentId])
+  @@index([type])
+  @@index([createdAt])
+}
+
 // Additional models can be added here for future features:
-// - Incident reports
 // - Emergency contacts
 // - Location tracking
 // - AI monitoring sessions

@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "tsc",
+    "build": "pnpm prisma:generate && tsc",
     "start": "node dist/index.js",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
@@ -13,7 +13,12 @@
     "format:check": "prettier --check src/**/*.ts",
     "typecheck": "tsc --noEmit",
     "code-quality": "pnpm run typecheck && pnpm run lint && pnpm run format:check",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:reset": "prisma migrate reset",
+    "postinstall": "prisma generate"
   },
   "keywords": [
     "guardian-pulse",
@@ -46,12 +51,18 @@
     "@aws-sdk/s3-request-presigner": "^3.850.0",
     "@prisma/client": "^6.12.0",
     "@types/express": "^5.0.3",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@types/twilio": "^3.19.3",
     "bcryptjs": "^3.0.2",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "express-async-handler": "^1.2.0",
     "jsonwebtoken": "^9.0.2",
     "socket.io": "^4.8.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "twilio": "^5.7.3",
     "zod": "^4.0.5"
   }
 }

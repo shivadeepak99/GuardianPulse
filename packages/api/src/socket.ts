@@ -323,7 +323,7 @@ export function initSocket(httpServer: HttpServer): Server {
           }
         });
 
-        const guardianIds = guardianRelationships.map(rel => rel.guardianId);
+        const guardianIds = guardianRelationships.map((rel: any) => rel.guardianId);
 
         // Add session to activeSessions map
         const sessionData: LiveSessionData = {
@@ -370,7 +370,7 @@ export function initSocket(httpServer: HttpServer): Server {
           sessionId,
           startTime: sessionData.startTime,
           roomName,
-          guardians: guardianRelationships.map(rel => rel.guardian),
+          guardians: guardianRelationships.map((rel: any) => rel.guardian),
           connectedGuardians: connectedGuardians.length,
           timestamp: new Date().toISOString()
         });

@@ -21,6 +21,14 @@ interface Config {
     region: string;
     s3BucketName: string;
   };
+  twilio: {
+    accountSid: string;
+    authToken: string;
+    phoneNumber: string;
+  };
+  app: {
+    dashboardUrl: string;
+  };
 }
 
 /**
@@ -44,6 +52,14 @@ export const config: Config = {
     region: process.env['AWS_REGION'] || 'us-east-1',
     s3BucketName: process.env['S3_BUCKET_NAME'] || '',
   },
+  twilio: {
+    accountSid: process.env['TWILIO_ACCOUNT_SID'] || '',
+    authToken: process.env['TWILIO_AUTH_TOKEN'] || '',
+    phoneNumber: process.env['TWILIO_PHONE_NUMBER'] || '',
+  },
+  app: {
+    dashboardUrl: process.env['DASHBOARD_URL'] || 'http://localhost:5173',
+  },
 };
 
 /**
@@ -59,10 +75,26 @@ export const validateConfig = (): void => {
     'AWS_REGION',
     'S3_BUCKET_NAME'
   ];
+  
+  // Twilio is optional for development but recommended for production
+  const optionalTwilioVars = [
+    'TWILIO_ACCOUNT_SID',
+    'TWILIO_AUTH_TOKEN', 
+    'TWILIO_PHONE_NUMBER'
+  ];
+  
   const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
   if (missingVars.length > 0) {
     throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  }
+
+  // Warn about missing Twilio config in production
+  if (config.nodeEnv === 'production') {
+    const missingTwilioVars = optionalTwilioVars.filter(envVar => !process.env[envVar]);
+    if (missingTwilioVars.length > 0) {
+      console.warn(`Warning: Missing Twilio environment variables: ${missingTwilioVars.join(', ')}. SMS alerts will be disabled.`);
+    }
   }
 
   if (isNaN(config.port) || config.port < 1 || config.port > 65535) {
