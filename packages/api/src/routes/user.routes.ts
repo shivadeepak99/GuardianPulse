@@ -221,6 +221,172 @@ userRoutes.get('/me', authenticate, UserController.getCurrentUser);
 
 /**
  * @swagger
+ * /users/me:
+ *   get:
+ *     summary: Get current user profile
+ *     description: Retrieves the profile information of the currently authenticated user
+ *     tags:
+ *       - User Profile
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *   put:
+ *     summary: Update current user profile
+ *     description: Updates the profile information of the currently authenticated user
+ *     tags:
+ *       - User Profile
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *                 example: "John"
+ *                 description: User's first name
+ *               lastName:
+ *                 type: string
+ *                 example: "Doe"
+ *                 description: User's last name
+ *               phoneNumber:
+ *                 type: string
+ *                 example: "+1234567890"
+ *                 description: User's phone number for SMS alerts
+ *             example:
+ *               firstName: "John"
+ *               lastName: "Doe"
+ *               phoneNumber: "+1234567890"
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Profile updated successfully"
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Invalid input data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+userRoutes.get('/me', authenticate, UserController.getCurrentUser);
+userRoutes.put('/me', authenticate, UserController.updateProfile);
+
+/**
+ * @swagger
+ * /users/me/password:
+ *   put:
+ *     summary: Change user password
+ *     description: Changes the password for the currently authenticated user
+ *     tags:
+ *       - User Profile
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *               - confirmPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 format: password
+ *                 example: "CurrentPass123!"
+ *                 description: User's current password for verification
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *                 example: "NewSecurePass456!"
+ *                 description: New password (minimum 8 characters)
+ *               confirmPassword:
+ *                 type: string
+ *                 format: password
+ *                 example: "NewSecurePass456!"
+ *                 description: Confirmation of new password (must match newPassword)
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Password changed successfully"
+ *       400:
+ *         description: Invalid input data or password validation failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Current password is incorrect"
+ *                 error:
+ *                   type: string
+ *                   example: "INVALID_PASSWORD"
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+userRoutes.put('/me/password', authenticate, UserController.changePassword);
+
+/**
+ * @swagger
  * /users/stats:
  *   get:
  *     summary: Get user statistics

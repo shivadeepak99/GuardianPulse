@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -87,6 +87,26 @@ const DashboardScreen: React.FC = () => {
   useEffect(() => {
     setIsLive(isTracking);
   }, [isTracking]);
+
+  // Configure header with profile button
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => navigation.navigate("Profile" as never)}
+          style={styles.headerButton}
+        >
+          <View style={styles.profileIcon}>
+            <Text style={styles.profileIconText}>
+              {user?.firstName?.[0]?.toUpperCase() ||
+                user?.email?.[0]?.toUpperCase() ||
+                "U"}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, user]);
 
   // Pulse animation for live mode
   useEffect(() => {
@@ -1063,6 +1083,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     letterSpacing: 2,
+  },
+
+  // Header Styles
+  headerButton: {
+    marginRight: 16,
+  },
+  profileIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#E0E7FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  profileIconText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#6366F1",
   },
 });
 

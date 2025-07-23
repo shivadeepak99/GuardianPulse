@@ -20,8 +20,11 @@
     "expo-status-bar": "~2.2.3",
     "react": "19.0.0",
     "react-native": "0.79.5",
+    "react-native-gesture-handler": "^2.23.0",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-screens": "^4.13.1",
+    "react-native-vector-icons": "^10.2.0",
+    "react-native-volume-manager": "^1.10.0",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
