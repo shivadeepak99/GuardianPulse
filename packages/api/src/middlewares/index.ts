@@ -10,7 +10,7 @@ import { ApiError, isApiError, isOperationalError } from '../utils/errors';
 export const requestLogger = (req: Request, res: Response, next: NextFunction): void => {
   const startTime = Date.now();
   const { method, url, ip } = req;
-  
+
   Logger.info('Incoming request', {
     method,
     url,
@@ -23,10 +23,10 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
   res.on('finish', () => {
     const duration = Date.now() - startTime;
     const { statusCode } = res;
-    
+
     const logLevel = statusCode >= 400 ? 'warn' : 'info';
     const logMessage = 'Request completed';
-    
+
     const logData = {
       method,
       url,
@@ -61,18 +61,18 @@ export const validateRequest = (schema: z.ZodSchema) => {
         const formattedErrors = error.issues.map(err => ({
           field: err.path.join('.'),
           message: err.message,
-          code: err.code
+          code: err.code,
         }));
-        
+
         Logger.warn('Request validation failed', {
           url: req.url,
           method: req.method,
-          errors: formattedErrors
+          errors: formattedErrors,
         });
-        
+
         res.status(400).json({
           message: 'Validation failed',
-          errors: formattedErrors
+          errors: formattedErrors,
         });
         return;
       }
@@ -85,12 +85,7 @@ export const validateRequest = (schema: z.ZodSchema) => {
  * Global Error Handler Middleware
  * Centralized error handling with consistent response format
  */
-export const errorHandler = (
-  err: Error | ApiError,
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
+export const errorHandler = (err: Error | ApiError, req: Request, res: Response, next: NextFunction): void => {
   // If response already sent, delegate to default Express error handler
   if (res.headersSent) {
     return next(err);
@@ -198,7 +193,7 @@ export const errorHandler = (
  */
 export const notFoundHandler = (req: Request, res: Response): void => {
   const message = `Route ${req.method} ${req.originalUrl} not found`;
-  
+
   Logger.warn('Route not found', {
     method: req.method,
     url: req.originalUrl,
@@ -224,25 +219,14 @@ export const notFoundHandler = (req: Request, res: Response): void => {
   });
 };
 
-/**
- * Security Headers Middleware
- * Adds security-related HTTP headers
- */
-export const securityHeaders = (req: Request, res: Response, next: NextFunction): void => {
-  // Remove X-Powered-By header
-  res.removeHeader('X-Powered-By');
-  
-  // Set security headers
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
-  
-  // Set HSTS header for HTTPS
-  if (req.secure || req.get('X-Forwarded-Proto') === 'https') {
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  }
-  
-  next();
-};
+// Export security middleware (replaces basic security headers)
+export {
+  generalRateLimit,
+  authRateLimit,
+  liveSessionRateLimit,
+  passwordResetRateLimit,
+  securityHeaders,
+  securityMonitoring,
+  ipWhitelist,
+  requestSizeLimit,
+} from './security.middleware';

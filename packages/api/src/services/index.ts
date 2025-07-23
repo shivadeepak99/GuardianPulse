@@ -5,8 +5,10 @@ import DatabaseService from './database.service';
 export { S3Service } from './s3.service';
 export { AlertService, AlertType, AlertPriority } from './alert.service';
 export { AnomalyDetectionService } from './anomaly.service';
+export { EmailService, emailService } from './email.service';
 export type { AlertData } from './alert.service';
 export type { SensorData } from './anomaly.service';
+export type { EmailOptions, IncidentEmailData } from './email.service';
 
 /**
  * Application Service
@@ -41,7 +43,7 @@ export class ApplicationService {
       try {
         const dbHealth = await DatabaseService.checkHealth();
         const dbStats = await DatabaseService.getStats();
-        
+
         (stats as typeof stats & { database: any }).database = {
           connected: dbHealth.connected,
           userCount: dbStats.userCount,
@@ -100,10 +102,10 @@ export class ApplicationService {
     const memUsage = process.memoryUsage();
     const heapUsedMB = memUsage.heapUsed / 1024 / 1024;
     const heapTotalMB = memUsage.heapTotal / 1024 / 1024;
-    
+
     // Consider memory healthy if heap usage is less than 90% of total
-    const memoryHealthy = (heapUsedMB / heapTotalMB) < 0.9;
-    
+    const memoryHealthy = heapUsedMB / heapTotalMB < 0.9;
+
     if (!memoryHealthy) {
       Logger.warn('High memory usage detected', {
         heapUsedMB: Math.round(heapUsedMB),
@@ -111,7 +113,7 @@ export class ApplicationService {
         usagePercentage: Math.round((heapUsedMB / heapTotalMB) * 100),
       });
     }
-    
+
     return memoryHealthy;
   }
 

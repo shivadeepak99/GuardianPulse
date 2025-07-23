@@ -2,6 +2,8 @@ import { DatabaseService } from './database.service';
 import { Logger } from '../utils';
 import { config } from '../config';
 import { Twilio } from 'twilio';
+import { emailService } from './email.service';
+import type { IncidentEmailData } from './email.service';
 
 /**
  * Alert Types Enum
@@ -79,7 +81,7 @@ interface AlertDeliveryResult {
 
 /**
  * Foundational Alert Service
- * 
+ *
  * This service provides a centralized way to send alerts to guardians.
  * Supports multiple notification channels: Console logging, SMS via Twilio,
  * and can be extended for Email and Push notifications.
@@ -99,10 +101,7 @@ export class AlertService {
   private initializeTwilio(): void {
     if (config.twilio.accountSid && config.twilio.authToken) {
       try {
-        this.twilioClient = new Twilio(
-          config.twilio.accountSid,
-          config.twilio.authToken
-        );
+        this.twilioClient = new Twilio(config.twilio.accountSid, config.twilio.authToken);
         Logger.info('Twilio client initialized successfully');
       } catch (error) {
         Logger.error('Failed to initialize Twilio client:', error);
@@ -120,15 +119,11 @@ export class AlertService {
    * @param data - Additional context data for the alert
    * @returns Promise<AlertDeliveryResult> - Result of the alert delivery
    */
-  async sendAlertToGuardian(
-    guardianId: string,
-    alertType: AlertType,
-    data: AlertData
-  ): Promise<AlertDeliveryResult> {
+  async sendAlertToGuardian(guardianId: string, alertType: AlertType, data: AlertData): Promise<AlertDeliveryResult> {
     try {
       // Get guardian information from database
       const guardian = await this.getGuardianInfo(guardianId);
-      
+
       if (!guardian) {
         const error = `Guardian with ID ${guardianId} not found`;
         Logger.warn(error);
@@ -143,24 +138,47 @@ export class AlertService {
 
       // Prepare alert context
       const alertContext = this.prepareAlertContext(guardian, alertType, data);
-      
-      // Try to send SMS first, fall back to console
-      let deliveryResult: AlertDeliveryResult;
-      
+
+      // Try multiple notification channels for better delivery
+      const deliveryResults: AlertDeliveryResult[] = [];
+
+      // Send SMS notification
       if (guardian.phoneNumber && this.twilioClient) {
-        deliveryResult = await this.deliverViaSMS(guardian, alertType, alertContext);
-      } else {
-        deliveryResult = await this.deliverViaConsole(guardian, alertType, alertContext);
+        const smsResult = await this.deliverViaSMS(guardian, alertType, alertContext);
+        deliveryResults.push(smsResult);
       }
-      
+
+      // Send Email notification
+      if (guardian.email && emailService.isReady()) {
+        const emailResult = await this.deliverViaEmail(guardian, alertType, alertContext, data);
+        deliveryResults.push(emailResult);
+      }
+
+      // If no other channels worked, fall back to console
+      if (deliveryResults.length === 0) {
+        const consoleResult = await this.deliverViaConsole(guardian, alertType, alertContext);
+        deliveryResults.push(consoleResult);
+      }
+
+      // Return the first successful result, or the last one if all failed
+      const successfulResult = deliveryResults.find(result => result.success);
+      const deliveryResult = successfulResult ||
+        deliveryResults[deliveryResults.length - 1] || {
+          guardianId,
+          success: false,
+          method: 'none',
+          timestamp: new Date(),
+          error: 'No delivery methods available',
+        };
+
       // Log the alert for auditing
       this.logAlertDelivery(guardianId, alertType, data, deliveryResult);
-      
+
       return deliveryResult;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       Logger.error(`Failed to send alert to guardian ${guardianId}:`, error);
-      
+
       return {
         guardianId,
         success: false,
@@ -178,15 +196,11 @@ export class AlertService {
    * @param data - Additional context data for the alert
    * @returns Promise<AlertDeliveryResult[]> - Results of all alert deliveries
    */
-  async sendAlertToAllGuardians(
-    wardId: string,
-    alertType: AlertType,
-    data: AlertData
-  ): Promise<AlertDeliveryResult[]> {
+  async sendAlertToAllGuardians(wardId: string, alertType: AlertType, data: AlertData): Promise<AlertDeliveryResult[]> {
     try {
       // Get all guardians for the ward
       const guardians = await this.getWardsGuardians(wardId);
-      
+
       if (guardians.length === 0) {
         Logger.warn(`No guardians found for ward ${wardId}`);
         return [];
@@ -194,14 +208,14 @@ export class AlertService {
 
       // Enhance data with ward information if not present
       const enhancedData = await this.enhanceAlertData(wardId, data);
-      
+
       // Send alerts to all guardians concurrently
       const deliveryPromises = guardians.map(guardian =>
-        this.sendAlertToGuardian(guardian.id, alertType, enhancedData)
+        this.sendAlertToGuardian(guardian.id, alertType, enhancedData),
       );
-      
+
       const results = await Promise.allSettled(deliveryPromises);
-      
+
       // Process results and log summary
       const deliveryResults = results.map((result, index) => {
         const guardian = guardians[index];
@@ -214,7 +228,7 @@ export class AlertService {
             error: 'Guardian not found',
           };
         }
-        
+
         if (result.status === 'fulfilled') {
           return result.value;
         } else {
@@ -228,11 +242,13 @@ export class AlertService {
           };
         }
       });
-      
+
       // Log summary
       const successCount = deliveryResults.filter(r => r.success).length;
-      Logger.info(`Alert batch sent: ${successCount}/${deliveryResults.length} successful deliveries for ward ${wardId}`);
-      
+      Logger.info(
+        `Alert batch sent: ${successCount}/${deliveryResults.length} successful deliveries for ward ${wardId}`,
+      );
+
       return deliveryResults;
     } catch (error) {
       Logger.error(`Failed to send alerts to guardians for ward ${wardId}:`, error);
@@ -252,7 +268,7 @@ export class AlertService {
     wardId: string,
     incidentId: string,
     alertType: AlertType,
-    data: AlertData
+    data: AlertData,
   ): Promise<AlertDeliveryResult[]> {
     // Enhance data with incident information
     const enhancedData = {
@@ -260,8 +276,8 @@ export class AlertService {
       metadata: {
         ...data.metadata,
         incidentId,
-        type: 'incident_alert'
-      }
+        type: 'incident_alert',
+      },
     };
 
     return this.sendAlertToAllGuardians(wardId, alertType, enhancedData);
@@ -283,7 +299,7 @@ export class AlertService {
           phoneNumber: true,
         },
       });
-      
+
       return guardian as GuardianInfo | null;
     } catch (error) {
       Logger.error(`Error fetching guardian info for ${guardianId}:`, error);
@@ -298,9 +314,9 @@ export class AlertService {
   private async getWardsGuardians(wardId: string): Promise<GuardianInfo[]> {
     try {
       const guardianRelations = await this.db.guardianRelationship.findMany({
-        where: { 
+        where: {
           wardId,
-          isActive: true
+          isActive: true,
         },
         include: {
           guardian: {
@@ -314,7 +330,7 @@ export class AlertService {
           },
         },
       });
-      
+
       return guardianRelations.map((relation: any) => relation.guardian as GuardianInfo);
     } catch (error) {
       Logger.error(`Error fetching guardians for ward ${wardId}:`, error);
@@ -337,23 +353,23 @@ export class AlertService {
             lastName: true,
           },
         });
-        
+
         if (ward) {
           data.wardId = ward.id;
           data.wardName = `${ward.firstName || ''} ${ward.lastName || ''}`.trim() || 'Unknown Ward';
         }
       }
-      
+
       // Add dashboard link if not present
       if (!data.dashboardLink) {
         data.dashboardLink = `${process.env['WEB_APP_URL'] || 'http://localhost:3000'}/dashboard/ward/${wardId}`;
       }
-      
+
       // Set timestamp if not present
       if (!data.timestamp) {
         data.timestamp = new Date();
       }
-      
+
       return data;
     } catch (error) {
       Logger.error(`Error enhancing alert data for ward ${wardId}:`, error);
@@ -367,7 +383,7 @@ export class AlertService {
    */
   private prepareAlertContext(guardian: GuardianInfo, alertType: AlertType, data: AlertData): any {
     const guardianName = `${guardian.firstName || ''} ${guardian.lastName || ''}`.trim() || guardian.email;
-    
+
     return {
       guardian: {
         id: guardian.id,
@@ -398,10 +414,10 @@ export class AlertService {
   private async deliverViaConsole(
     guardian: GuardianInfo,
     alertType: AlertType,
-    context: any
+    context: any,
   ): Promise<AlertDeliveryResult> {
     const alertMessage = this.formatConsoleAlert(guardian.id, alertType, context);
-    
+
     // Log the alert based on priority
     const priority = context.alert.priority;
     switch (priority) {
@@ -415,7 +431,7 @@ export class AlertService {
       default:
         Logger.info(alertMessage);
     }
-    
+
     return {
       guardianId: guardian.id,
       success: true,
@@ -431,7 +447,7 @@ export class AlertService {
   private async deliverViaSMS(
     guardian: GuardianInfo,
     alertType: AlertType,
-    context: any
+    context: any,
   ): Promise<AlertDeliveryResult> {
     try {
       if (!this.twilioClient) {
@@ -448,7 +464,7 @@ export class AlertService {
 
       // Format SMS message
       const smsMessage = this.formatSMSAlert(alertType, context);
-      
+
       // Send SMS via Twilio
       const message = await this.twilioClient.messages.create({
         body: smsMessage,
@@ -466,9 +482,71 @@ export class AlertService {
       };
     } catch (error) {
       Logger.error(`Failed to send SMS to guardian ${guardian.id}:`, error);
-      
+
       // Fall back to console logging
       return await this.deliverViaConsole(guardian, alertType, context);
+    }
+  }
+
+  /**
+   * Deliver alert via Email using EmailService
+   * @private
+   */
+  private async deliverViaEmail(
+    guardian: GuardianInfo,
+    alertType: AlertType,
+    context: any,
+    data: AlertData,
+  ): Promise<AlertDeliveryResult> {
+    try {
+      if (!emailService.isReady()) {
+        throw new Error('Email service not available');
+      }
+
+      if (!guardian.email) {
+        throw new Error('Guardian email not available');
+      }
+
+      // Create incident email data
+      const incidentEmailData: IncidentEmailData = {
+        wardName: context.ward.name || data.wardName || 'Unknown Ward',
+        wardEmail: context.ward.email || 'Unknown',
+        incidentType: this.formatAlertTypeForEmail(alertType),
+        incidentId: data.metadata?.['incidentId'] || 'Unknown',
+        timestamp: (data.timestamp || new Date()).toISOString(),
+        dashboardUrl: data.dashboardLink || config.app.dashboardUrl,
+        ...(data.location && {
+          location: {
+            latitude: data.location.latitude,
+            longitude: data.location.longitude,
+          },
+        }),
+      };
+
+      // Send incident alert email
+      const success = await emailService.sendIncidentAlert([guardian.email], incidentEmailData);
+
+      if (success) {
+        Logger.info(`Email alert sent to guardian ${guardian.id} at ${guardian.email}`);
+        return {
+          guardianId: guardian.id,
+          success: true,
+          method: 'email',
+          timestamp: new Date(),
+        };
+      } else {
+        throw new Error('Email delivery failed');
+      }
+    } catch (error) {
+      Logger.error(`Failed to send email to guardian ${guardian.id}:`, error);
+
+      return {
+        guardianId: guardian.id,
+        success: false,
+        method: 'email',
+        timestamp: new Date(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
     }
   }
 
@@ -479,7 +557,7 @@ export class AlertService {
   private formatSMSAlert(alertType: AlertType, context: any): string {
     const wardName = context.ward.name || 'Unknown Ward';
     const dashboardUrl = context.dashboardLink || config.app.dashboardUrl;
-    
+
     let alertTypeText = '';
     switch (alertType) {
       case AlertType.SOS_TRIGGERED:
@@ -502,19 +580,57 @@ export class AlertService {
     }
 
     let message = `🚨 GuardianPulse Alert: ${alertTypeText} - ${wardName}`;
-    
+
     if (context.location) {
       message += ` at location ${context.location.latitude.toFixed(4)}, ${context.location.longitude.toFixed(4)}`;
     }
-    
+
     message += `. Check your dashboard: ${dashboardUrl}`;
-    
+
     // SMS has a 160 character limit, so we might need to truncate
     if (message.length > 160) {
       message = message.substring(0, 157) + '...';
     }
-    
+
     return message;
+  }
+
+  /**
+   * Format alert type for email display
+   * @private
+   */
+  private formatAlertTypeForEmail(alertType: AlertType): string {
+    switch (alertType) {
+      case AlertType.SOS_TRIGGERED:
+        return 'SOS Emergency';
+      case AlertType.FALL_DETECTED:
+        return 'Fall Detected';
+      case AlertType.PANIC_BUTTON:
+        return 'Panic Button Pressed';
+      case AlertType.THROWN_AWAY:
+        return 'Device Thrown Away';
+      case AlertType.FAKE_SHUTDOWN:
+        return 'Fake Shutdown Detected';
+      case AlertType.LOCATION_LOST:
+        return 'Location Lost';
+      case AlertType.BATTERY_LOW:
+        return 'Low Battery';
+      case AlertType.DEVICE_OFFLINE:
+        return 'Device Offline';
+      case AlertType.GEOFENCE_VIOLATION:
+        return 'Geofence Violation';
+      case AlertType.UNUSUAL_ACTIVITY:
+        return 'Unusual Activity';
+      case AlertType.EMERGENCY_CONTACT:
+        return 'Emergency Contact';
+      case AlertType.SYSTEM_ALERT:
+        return 'System Alert';
+      default:
+        return String(alertType)
+          .replace(/_/g, ' ')
+          .toLowerCase()
+          .replace(/\b\w/g, (l: string) => l.toUpperCase());
+    }
   }
 
   /**
@@ -526,10 +642,10 @@ export class AlertService {
     const priority = context.alert.priority;
     const wardName = context.ward.name || 'Unknown Ward';
     const message = context.message;
-    const location = context.location 
-      ? `Location: ${context.location.latitude}, ${context.location.longitude}` 
+    const location = context.location
+      ? `Location: ${context.location.latitude}, ${context.location.longitude}`
       : 'Location: Unknown';
-    
+
     return `🚨 ALERT for Guardian [${guardianId}]: Type: [${alertType}] Priority: [${priority}] - Ward: [${wardName}] - ${message} - ${location} - Dashboard: ${context.dashboardLink} - Time: ${timestamp}`;
   }
 
@@ -582,7 +698,7 @@ export class AlertService {
    */
   private getDefaultMessage(alertType: AlertType, data: AlertData): string {
     const wardName = data.wardName || 'your ward';
-    
+
     switch (alertType) {
       case AlertType.SOS_TRIGGERED:
         return `${wardName} has triggered an SOS alert. Immediate attention required.`;
@@ -621,7 +737,7 @@ export class AlertService {
     guardianId: string,
     alertType: AlertType,
     data: AlertData,
-    result: AlertDeliveryResult
+    result: AlertDeliveryResult,
   ): void {
     Logger.info('Alert delivery recorded', {
       guardianId,

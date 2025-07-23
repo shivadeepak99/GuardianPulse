@@ -6,7 +6,14 @@ import { config } from './config';
 import swaggerSpec from './config/swagger';
 import { Logger } from './utils';
 import { DatabaseService } from './services';
-import { requestLogger, errorHandler, notFoundHandler, securityHeaders } from './middlewares';
+import {
+  requestLogger,
+  errorHandler,
+  notFoundHandler,
+  securityHeaders,
+  generalRateLimit,
+  securityMonitoring,
+} from './middlewares';
 import healthRoutes from './api/health.routes';
 import apiRoutes from './routes';
 import { initSocket } from './socket';
@@ -33,13 +40,13 @@ class GuardianPulseServer {
     try {
       // Initialize database connection
       await this.initializeDatabase();
-      
+
       // Initialize application components
       this.initializeMiddlewares();
       this.initializeRoutes();
       this.initializeWebSockets();
       this.initializeErrorHandling();
-      
+
       Logger.info('Server initialization completed successfully');
     } catch (error) {
       Logger.error('Server initialization failed', error);
@@ -64,13 +71,19 @@ class GuardianPulseServer {
    * Initialize application middlewares
    */
   private initializeMiddlewares(): void {
-    // Security headers
+    // Enhanced security headers (using helmet)
     this.app.use(securityHeaders);
-    
+
+    // Security monitoring (suspicious request detection)
+    this.app.use(securityMonitoring);
+
+    // General rate limiting for all API endpoints
+    this.app.use('/api/', generalRateLimit);
+
     // Request logging
     this.app.use(requestLogger);
-    
-    // Body parsing
+
+    // Body parsing with size limits
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   }
@@ -81,14 +94,18 @@ class GuardianPulseServer {
   private initializeRoutes(): void {
     // Health routes
     this.app.use('/health', healthRoutes);
-    
+
     // API Documentation
-    this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-      explorer: true,
-      customCss: '.swagger-ui .topbar { display: none }',
-      customSiteTitle: 'GuardianPulse API Documentation'
-    }));
-    
+    this.app.use(
+      '/api-docs',
+      swaggerUi.serve,
+      swaggerUi.setup(swaggerSpec, {
+        explorer: true,
+        customCss: '.swagger-ui .topbar { display: none }',
+        customSiteTitle: 'GuardianPulse API Documentation',
+      }),
+    );
+
     // API v1 routes
     this.app.use('/api/v1', apiRoutes);
   }
@@ -101,8 +118,8 @@ class GuardianPulseServer {
     Logger.info('WebSocket server initialized successfully', {
       transports: ['websocket', 'polling'],
       cors: {
-        origin: process.env['FRONTEND_URL'] || 'http://localhost:3000'
-      }
+        origin: process.env['FRONTEND_URL'] || 'http://localhost:3000',
+      },
     });
 
     // Store io instance for use in other parts of the application
@@ -115,7 +132,7 @@ class GuardianPulseServer {
   private initializeErrorHandling(): void {
     // 404 handler
     this.app.use(notFoundHandler);
-    
+
     // Global error handler
     this.app.use(errorHandler);
   }
@@ -139,8 +156,8 @@ class GuardianPulseServer {
         features: {
           'Real-time Communication': 'Socket.IO',
           'API Documentation': 'Swagger UI',
-          'Authentication': 'JWT',
-          'Database': 'PostgreSQL + Prisma'
+          Authentication: 'JWT',
+          Database: 'PostgreSQL + Prisma',
         },
         database: {
           provider: 'PostgreSQL',
@@ -156,10 +173,10 @@ class GuardianPulseServer {
   public async shutdown(): Promise<void> {
     try {
       Logger.info('Initiating graceful shutdown...');
-      
+
       // Disconnect from database
       await DatabaseService.disconnect();
-      
+
       Logger.info('Graceful shutdown completed');
       process.exit(0);
     } catch (error) {
@@ -179,22 +196,21 @@ class GuardianPulseServer {
 // Initialize and start server
 async function startServer(): Promise<void> {
   const server = new GuardianPulseServer();
-  
+
   try {
     await server.initialize();
     server.start();
-    
+
     // Handle graceful shutdown
     process.on('SIGTERM', async () => {
       Logger.info('SIGTERM received');
       await server.shutdown();
     });
-    
+
     process.on('SIGINT', async () => {
       Logger.info('SIGINT received');
       await server.shutdown();
     });
-    
   } catch (error) {
     Logger.error('Failed to start server', error);
     process.exit(1);

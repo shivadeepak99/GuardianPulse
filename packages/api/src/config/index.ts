@@ -26,6 +26,14 @@ interface Config {
     authToken: string;
     phoneNumber: string;
   };
+  email: {
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    password: string;
+    from: string;
+  };
   app: {
     dashboardUrl: string;
   };
@@ -57,6 +65,14 @@ export const config: Config = {
     authToken: process.env['TWILIO_AUTH_TOKEN'] || '',
     phoneNumber: process.env['TWILIO_PHONE_NUMBER'] || '',
   },
+  email: {
+    host: process.env['EMAIL_HOST'] || '',
+    port: parseInt(process.env['EMAIL_PORT'] || '587', 10),
+    secure: process.env['EMAIL_SECURE'] === 'true', // true for 465, false for other ports
+    user: process.env['EMAIL_USER'] || '',
+    password: process.env['EMAIL_PASSWORD'] || '',
+    from: process.env['EMAIL_FROM'] || process.env['EMAIL_USER'] || '',
+  },
   app: {
     dashboardUrl: process.env['DASHBOARD_URL'] || 'http://localhost:5173',
   },
@@ -67,22 +83,18 @@ export const config: Config = {
  */
 export const validateConfig = (): void => {
   const requiredEnvVars = [
-    'PORT', 
-    'DATABASE_URL', 
+    'PORT',
+    'DATABASE_URL',
     'JWT_SECRET',
     'AWS_ACCESS_KEY_ID',
     'AWS_SECRET_ACCESS_KEY',
     'AWS_REGION',
-    'S3_BUCKET_NAME'
+    'S3_BUCKET_NAME',
   ];
-  
+
   // Twilio is optional for development but recommended for production
-  const optionalTwilioVars = [
-    'TWILIO_ACCOUNT_SID',
-    'TWILIO_AUTH_TOKEN', 
-    'TWILIO_PHONE_NUMBER'
-  ];
-  
+  const optionalTwilioVars = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER'];
+
   const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
   if (missingVars.length > 0) {
@@ -93,7 +105,9 @@ export const validateConfig = (): void => {
   if (config.nodeEnv === 'production') {
     const missingTwilioVars = optionalTwilioVars.filter(envVar => !process.env[envVar]);
     if (missingTwilioVars.length > 0) {
-      console.warn(`Warning: Missing Twilio environment variables: ${missingTwilioVars.join(', ')}. SMS alerts will be disabled.`);
+      console.warn(
+        `Warning: Missing Twilio environment variables: ${missingTwilioVars.join(', ')}. SMS alerts will be disabled.`,
+      );
     }
   }
 

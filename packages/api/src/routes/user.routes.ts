@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { UserController } from '../controllers/user.controller';
 import { authenticate } from '../middlewares/auth.middleware';
+import { authRateLimit } from '../middlewares';
 
 /**
  * User Routes
@@ -78,7 +79,7 @@ export const userRoutes: Router = Router();
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-userRoutes.post('/register', UserController.registerUser);
+userRoutes.post('/register', authRateLimit, UserController.registerUser);
 
 /**
  * @swagger
@@ -146,7 +147,7 @@ userRoutes.post('/register', UserController.registerUser);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-userRoutes.post('/login', UserController.loginUser);
+userRoutes.post('/login', authRateLimit, UserController.loginUser);
 
 /**
  * @swagger

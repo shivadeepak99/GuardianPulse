@@ -30,9 +30,14 @@
     "ts-node": "^10.9.2"
   },
   "lint-staged": {
-    "packages/*/src/**/*.{ts,tsx}": [
-      "prettier --write",
-      "eslint --fix"
+    "packages/api/src/**/*.{ts,tsx}": [
+      "prettier --write"
+    ],
+    "packages/web/src/**/*.{ts,tsx}": [
+      "prettier --write"
+    ],
+    "packages/mobile/**/*.{ts,tsx}": [
+      "prettier --write"
     ],
     "packages/**/package.json": [
       "prettier --write"

@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { authenticate, AuthenticatedRequest } from '../middlewares/auth.middleware';
-import { validateRequest } from '../middlewares';
-import { 
-  createIncidentSchema, 
+import { validateRequest, liveSessionRateLimit } from '../middlewares';
+import {
+  createIncidentSchema,
   manualSOSSchema,
   fakeShutdownSchema,
-  processSensorDataSchema
+  processSensorDataSchema,
 } from '../utils/validation';
 import { DatabaseService } from '../services/database.service';
 import { AlertService, AlertType, AlertPriority } from '../services/alert.service';
@@ -93,7 +93,8 @@ const thrownAwayController = new ThrownAwayController();
  *             schema:
  *               $ref: '#/components/schemas/Incident'
  */
-router.post('/', 
+router.post(
+  '/',
   authenticate,
   validateRequest(createIncidentSchema),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
@@ -117,10 +118,10 @@ router.post('/',
             id: true,
             firstName: true,
             lastName: true,
-            email: true
-          }
-        }
-      }
+            email: true,
+          },
+        },
+      },
     });
 
     // Determine alert priority based on incident type
@@ -157,7 +158,7 @@ router.post('/',
         timestamp: incident.createdAt,
         location,
         priority,
-        message: description
+        message: description,
       });
     } catch (error) {
       Logger.error('Failed to send incident alerts:', error);
@@ -168,9 +169,9 @@ router.post('/',
 
     res.status(201).json({
       success: true,
-      data: incident
+      data: incident,
     });
-  })
+  }),
 );
 
 /**
@@ -203,7 +204,8 @@ router.post('/',
  *       201:
  *         description: SOS alert triggered successfully
  */
-router.post('/manual-sos',
+router.post(
+  '/manual-sos',
   authenticate,
   validateRequest(manualSOSSchema),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
@@ -213,11 +215,7 @@ router.post('/manual-sos',
     Logger.warn(`Manual SOS triggered by user ${userId}`);
 
     // Use AnomalyDetectionService to create SOS incident
-    const incident = await anomalyService.createManualSOSIncident(
-      userId,
-      location,
-      message
-    );
+    const incident = await anomalyService.createManualSOSIncident(userId, location, message);
 
     Logger.warn(`SOS incident ${incident.id} created and alerts sent`);
 
@@ -226,10 +224,10 @@ router.post('/manual-sos',
       data: {
         incidentId: incident.id,
         message: 'SOS alert triggered successfully',
-        timestamp: incident.createdAt
-      }
+        timestamp: incident.createdAt,
+      },
     });
-  })
+  }),
 );
 
 /**
@@ -286,7 +284,9 @@ router.post('/manual-sos',
  *       201:
  *         description: Fall detected and incident created
  */
-router.post('/process-sensor-data',
+router.post(
+  '/process-sensor-data',
+  liveSessionRateLimit, // Allow frequent sensor data updates
   authenticate,
   validateRequest(processSensorDataSchema),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
@@ -299,7 +299,7 @@ router.post('/process-sensor-data',
       accelerometer,
       gyroscope,
       location,
-      timestamp: timestamp ? new Date(timestamp) : new Date()
+      timestamp: timestamp ? new Date(timestamp) : new Date(),
     };
 
     Logger.info(`Processing sensor data for user ${userId}`);
@@ -309,28 +309,28 @@ router.post('/process-sensor-data',
 
     if (incidentCreated) {
       Logger.warn(`Fall detected for user ${userId}, incident created`);
-      
+
       res.status(201).json({
         success: true,
         data: {
           anomalyDetected: true,
           incidentCreated: true,
-          message: 'Fall detected and incident created successfully'
-        }
+          message: 'Fall detected and incident created successfully',
+        },
       });
     } else {
       Logger.info(`No anomaly detected for user ${userId}`);
-      
+
       res.status(200).json({
         success: true,
         data: {
           anomalyDetected: false,
           incidentCreated: false,
-          message: 'Sensor data processed successfully - no anomalies detected'
-        }
+          message: 'Sensor data processed successfully - no anomalies detected',
+        },
       });
     }
-  })
+  }),
 );
 
 /**
@@ -457,10 +457,7 @@ router.post('/process-sensor-data',
  *       500:
  *         description: Critical incident processing failed
  */
-router.post('/thrown-away',
-  authenticate,
-  asyncHandler(thrownAwayController.handleThrownAwayIncident)
-);
+router.post('/thrown-away', authenticate, asyncHandler(thrownAwayController.handleThrownAwayIncident));
 
 /**
  * @swagger
@@ -490,10 +487,7 @@ router.post('/thrown-away',
  *       500:
  *         description: Failed to test thrown-away system
  */
-router.post('/thrown-away/test',
-  authenticate,
-  asyncHandler(thrownAwayController.testThrownAwaySystem)
-);
+router.post('/thrown-away/test', authenticate, asyncHandler(thrownAwayController.testThrownAwaySystem));
 
 /**
  * @swagger
@@ -525,7 +519,8 @@ router.post('/thrown-away/test',
  *       201:
  *         description: Fake shutdown incident reported successfully
  */
-router.post('/fake-shutdown',
+router.post(
+  '/fake-shutdown',
   authenticate,
   validateRequest(fakeShutdownSchema),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
@@ -541,7 +536,7 @@ router.post('/fake-shutdown',
         wardId: userId,
         latitude: location?.latitude,
         longitude: location?.longitude,
-        description: 'Fake shutdown triggered - potential duress or emergency situation detected'
+        description: 'Fake shutdown triggered - potential duress or emergency situation detected',
       },
       include: {
         ward: {
@@ -549,10 +544,10 @@ router.post('/fake-shutdown',
             id: true,
             firstName: true,
             lastName: true,
-            email: true
-          }
-        }
-      }
+            email: true,
+          },
+        },
+      },
     });
 
     // Store device info as evidence
@@ -568,9 +563,9 @@ router.post('/fake-shutdown',
             storageUrl: `evidence/incidents/${incident.id}/device-info-${Date.now()}.json`,
             metadata: {
               deviceInfo,
-              triggerTimestamp: new Date()
-            }
-          }
+              triggerTimestamp: new Date(),
+            },
+          },
         });
       } catch (error) {
         Logger.error('Failed to store device info evidence:', error);
@@ -585,7 +580,7 @@ router.post('/fake-shutdown',
         timestamp: incident.createdAt,
         location,
         priority: AlertPriority.EMERGENCY,
-        message: 'EMERGENCY: Ward may be in danger - fake shutdown triggered'
+        message: 'EMERGENCY: Ward may be in danger - fake shutdown triggered',
       });
     } catch (error) {
       Logger.error('Failed to send fake shutdown alerts:', error);
@@ -595,10 +590,10 @@ router.post('/fake-shutdown',
       success: true,
       data: {
         incidentId: incident.id,
-        message: 'Emergency alert sent successfully'
-      }
+        message: 'Emergency alert sent successfully',
+      },
     });
-  })
+  }),
 );
 
 /**
@@ -633,14 +628,15 @@ router.post('/fake-shutdown',
  *       200:
  *         description: List of incidents
  */
-router.get('/',
+router.get(
+  '/',
   authenticate,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = req.user!.id;
     const { status, type, limit = 50 } = req.query;
 
     const where: any = { wardId: userId };
-    
+
     if (status) where.status = status;
     if (type) where.type = type;
 
@@ -653,20 +649,20 @@ router.get('/',
             type: true,
             fileName: true,
             mimeType: true,
-            createdAt: true
-          }
-        }
+            createdAt: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
-      take: Number(limit)
+      take: Number(limit),
     });
 
     res.json({
       success: true,
       data: incidents,
-      total: incidents.length
+      total: incidents.length,
     });
-  })
+  }),
 );
 
 /**
@@ -688,7 +684,8 @@ router.get('/',
  *       200:
  *         description: List of ward incidents
  */
-router.get('/ward/:wardId',
+router.get(
+  '/ward/:wardId',
   authenticate,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const guardianId = req.user!.id;
@@ -703,8 +700,8 @@ router.get('/ward/:wardId',
       where: {
         guardianId,
         wardId,
-        isActive: true
-      }
+        isActive: true,
+      },
     });
 
     if (!relationship) {
@@ -720,27 +717,27 @@ router.get('/ward/:wardId',
             type: true,
             fileName: true,
             mimeType: true,
-            createdAt: true
-          }
+            createdAt: true,
+          },
         },
         ward: {
           select: {
             firstName: true,
             lastName: true,
-            email: true
-          }
-        }
+            email: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
-      take: 100
+      take: 100,
     });
 
     res.json({
       success: true,
       data: incidents,
-      total: incidents.length
+      total: incidents.length,
     });
-  })
+  }),
 );
 
 /**
@@ -797,7 +794,8 @@ router.get('/ward/:wardId',
  *       403:
  *         description: Not authorized to view this ward's incidents
  */
-router.get('/ward/:wardId',
+router.get(
+  '/ward/:wardId',
   authenticate,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const guardianId = req.user!.id;
@@ -813,8 +811,8 @@ router.get('/ward/:wardId',
       where: {
         guardianId,
         wardId,
-        isActive: true
-      }
+        isActive: true,
+      },
     });
 
     if (!guardianRelationship) {
@@ -822,7 +820,7 @@ router.get('/ward/:wardId',
     }
 
     const where: any = { wardId };
-    
+
     if (status) where.status = status;
     if (type) where.type = type;
 
@@ -834,8 +832,8 @@ router.get('/ward/:wardId',
             id: true,
             firstName: true,
             lastName: true,
-            email: true
-          }
+            email: true,
+          },
         },
         evidence: {
           select: {
@@ -843,12 +841,12 @@ router.get('/ward/:wardId',
             type: true,
             fileName: true,
             mimeType: true,
-            createdAt: true
-          }
-        }
+            createdAt: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
-      take: Number(limit)
+      take: Number(limit),
     });
 
     Logger.info(`Guardian ${guardianId} fetched ${incidents.length} incidents for ward ${wardId}`);
@@ -856,9 +854,392 @@ router.get('/ward/:wardId',
     res.json({
       success: true,
       data: incidents,
-      total: incidents.length
+      total: incidents.length,
     });
-  })
+  }),
+);
+
+/**
+ * @swagger
+ * /incidents/{incidentId}/evidence:
+ *   get:
+ *     summary: Get all evidence for an incident
+ *     description: Retrieves all evidence files associated with a specific incident, including pre-signed download URLs
+ *     tags:
+ *       - Incidents
+ *       - Evidence
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: incidentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the incident to retrieve evidence for
+ *     responses:
+ *       200:
+ *         description: Evidence retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     evidence:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             example: "123e4567-e89b-12d3-a456-426614174000"
+ *                           type:
+ *                             type: string
+ *                             enum: [AUDIO, VIDEO, IMAGE, DOCUMENT]
+ *                             example: "AUDIO"
+ *                           downloadUrl:
+ *                             type: string
+ *                             example: "https://s3.amazonaws.com/bucket/evidence/file.m4a?signature=..."
+ *                           fileName:
+ *                             type: string
+ *                             example: "emergency-audio-user123-2025-07-23T15-30-00-000Z.m4a"
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                             example: "2025-07-23T15:30:00.000Z"
+ *                     count:
+ *                       type: integer
+ *                       example: 1
+ *       404:
+ *         description: Incident not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get(
+  '/:incidentId/evidence',
+  authenticate,
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const { incidentId } = req.params;
+    const userId = req.user!.id;
+
+    if (!incidentId) {
+      res.status(400).json({
+        error: 'Missing incident ID',
+        message: 'incidentId parameter is required',
+      });
+      return;
+    }
+
+    try {
+      // Verify the incident exists and the user has access to it
+      const incident = await db.incident.findFirst({
+        where: {
+          id: incidentId,
+          OR: [
+            // User is the ward (owner of the incident)
+            { wardId: userId },
+            // User is a guardian of the ward
+            {
+              ward: {
+                asWard: {
+                  some: {
+                    guardianId: userId,
+                    isActive: true,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      if (!incident) {
+        res.status(404).json({
+          error: 'Incident not found',
+          message: 'The specified incident does not exist or you do not have permission to access it',
+        });
+        return;
+      }
+
+      // Get all evidence for this incident
+      const evidenceRecords = await db.evidence.findMany({
+        where: {
+          incidentId: incidentId,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      // Generate pre-signed download URLs for each evidence file
+      const { S3Service } = await import('../services/s3.service');
+      const s3Service = new S3Service();
+
+      const evidenceWithUrls = await Promise.all(
+        evidenceRecords.map(async evidence => {
+          try {
+            const downloadUrl = await s3Service.getDownloadPresignedUrl(evidence.storageUrl);
+            const fileName = evidence.fileName || evidence.storageUrl.split('/').pop() || 'unknown';
+
+            return {
+              id: evidence.id,
+              type: evidence.type,
+              downloadUrl,
+              fileName,
+              fileSize: evidence.fileSize,
+              mimeType: evidence.mimeType,
+              createdAt: evidence.createdAt,
+              metadata: evidence.metadata,
+            };
+          } catch (error) {
+            Logger.error('Error generating download URL for evidence', {
+              evidenceId: evidence.id,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+
+            return {
+              id: evidence.id,
+              type: evidence.type,
+              downloadUrl: null,
+              fileName: evidence.fileName || 'unknown',
+              fileSize: evidence.fileSize,
+              mimeType: evidence.mimeType,
+              createdAt: evidence.createdAt,
+              metadata: evidence.metadata,
+              error: 'Unable to generate download URL',
+            };
+          }
+        }),
+      );
+
+      res.status(200).json({
+        success: true,
+        data: {
+          evidence: evidenceWithUrls,
+          count: evidenceRecords.length,
+        },
+      });
+    } catch (error) {
+      Logger.error('Error retrieving evidence for incident', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        incidentId,
+        userId,
+      });
+
+      res.status(500).json({
+        error: 'Internal server error',
+        message: 'Failed to retrieve evidence for incident',
+      });
+    }
+  }),
+);
+
+/**
+ * @swagger
+ * /incidents/{incidentId}/associate-evidence:
+ *   post:
+ *     summary: Associate evidence with an incident
+ *     description: Links uploaded evidence (audio, video, images) to a specific incident
+ *     tags:
+ *       - Incidents
+ *       - Evidence
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: incidentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the incident to associate evidence with
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - storageUrl
+ *               - type
+ *             properties:
+ *               storageUrl:
+ *                 type: string
+ *                 description: The S3 key/path of the uploaded evidence file
+ *                 example: "evidence/2025/07/emergency-audio-12345-2025-07-23T15-30-00-000Z.m4a"
+ *               type:
+ *                 type: string
+ *                 enum: [AUDIO, VIDEO, IMAGE, DOCUMENT]
+ *                 description: The type of evidence being associated
+ *                 example: "AUDIO"
+ *               description:
+ *                 type: string
+ *                 description: Optional description of the evidence
+ *                 example: "Emergency audio recording from incident"
+ *     responses:
+ *       201:
+ *         description: Evidence successfully associated with incident
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     evidenceId:
+ *                       type: string
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
+ *                     incidentId:
+ *                       type: string
+ *                       example: "987fcdeb-51a2-43d7-b123-789456123000"
+ *                     storageUrl:
+ *                       type: string
+ *                       example: "evidence/2025/07/emergency-audio-12345-2025-07-23T15-30-00-000Z.m4a"
+ *                     type:
+ *                       type: string
+ *                       example: "AUDIO"
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2025-07-23T15:30:00.000Z"
+ *       400:
+ *         description: Invalid request data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Incident not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post(
+  '/:incidentId/associate-evidence',
+  authenticate,
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const { incidentId } = req.params;
+    const { storageUrl, type, description } = req.body;
+    const userId = req.user!.id;
+
+    // Validate incidentId
+    if (!incidentId) {
+      res.status(400).json({
+        error: 'Missing incident ID',
+        message: 'incidentId parameter is required',
+      });
+      return;
+    }
+
+    // Validate request body
+    if (!storageUrl || !type) {
+      res.status(400).json({
+        error: 'Missing required fields',
+        message: 'storageUrl and type are required',
+      });
+      return;
+    }
+
+    // Validate evidence type
+    const validTypes = ['AUDIO', 'VIDEO', 'IMAGE', 'DOCUMENT'];
+    if (!validTypes.includes(type)) {
+      res.status(400).json({
+        error: 'Invalid evidence type',
+        message: 'type must be one of: AUDIO, VIDEO, IMAGE, DOCUMENT',
+      });
+      return;
+    }
+
+    // Verify the incident exists and belongs to the user
+    const incident = await db.incident.findFirst({
+      where: {
+        id: incidentId,
+        wardId: userId,
+      },
+    });
+
+    if (!incident) {
+      res.status(404).json({
+        error: 'Incident not found',
+        message: 'The specified incident does not exist or you do not have permission to access it',
+      });
+      return;
+    }
+
+    try {
+      // Create evidence record in database
+      const evidence = await db.evidence.create({
+        data: {
+          incidentId: incidentId,
+          storageUrl: storageUrl,
+          type: type as any, // Type assertion for enum
+          // Add optional metadata including description and uploader info
+          metadata: {
+            description: description || null,
+            uploadedBy: userId,
+            uploadedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      Logger.info('Evidence associated with incident', {
+        evidenceId: evidence.id,
+        incidentId: incidentId,
+        userId: userId,
+        type: type,
+        storageUrl: storageUrl,
+      });
+
+      res.status(201).json({
+        success: true,
+        data: {
+          evidenceId: evidence.id,
+          incidentId: evidence.incidentId,
+          storageUrl: evidence.storageUrl,
+          type: evidence.type,
+          metadata: evidence.metadata,
+          createdAt: evidence.createdAt,
+        },
+      });
+    } catch (error) {
+      Logger.error('Error associating evidence with incident', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        incidentId,
+        userId,
+        storageUrl,
+        type,
+      });
+
+      res.status(500).json({
+        error: 'Internal server error',
+        message: 'Failed to associate evidence with incident',
+      });
+    }
+  }),
 );
 
 export default router;
