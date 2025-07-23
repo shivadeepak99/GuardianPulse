@@ -211,6 +211,33 @@ export class AlertService {
   }
 
   /**
+   * Send incident alert to all guardians (convenience method for incidents)
+   * @param wardId - The ID of the ward
+   * @param incidentId - The ID of the incident
+   * @param alertType - The type of alert being sent
+   * @param data - Additional context data for the alert
+   * @returns Promise<AlertDeliveryResult[]> - Results of all alert deliveries
+   */
+  async sendIncidentAlert(
+    wardId: string,
+    incidentId: string,
+    alertType: AlertType,
+    data: AlertData
+  ): Promise<AlertDeliveryResult[]> {
+    // Enhance data with incident information
+    const enhancedData = {
+      ...data,
+      metadata: {
+        ...data.metadata,
+        incidentId,
+        type: 'incident_alert'
+      }
+    };
+
+    return this.sendAlertToAllGuardians(wardId, alertType, enhancedData);
+  }
+
+  /**
    * Get guardian information from database
    * @private
    */
@@ -389,6 +416,8 @@ export class AlertService {
     switch (alertType) {
       case AlertType.SOS_TRIGGERED:
       case AlertType.PANIC_BUTTON:
+      case AlertType.THROWN_AWAY:
+      case AlertType.FAKE_SHUTDOWN:
         return AlertPriority.EMERGENCY;
       case AlertType.FALL_DETECTED:
       case AlertType.EMERGENCY_CONTACT:
@@ -417,6 +446,8 @@ export class AlertService {
       AlertType.FALL_DETECTED,
       AlertType.PANIC_BUTTON,
       AlertType.EMERGENCY_CONTACT,
+      AlertType.THROWN_AWAY,
+      AlertType.FAKE_SHUTDOWN,
     ].includes(alertType);
   }
 
@@ -434,6 +465,10 @@ export class AlertService {
         return `A potential fall has been detected for ${wardName}. Please check on them immediately.`;
       case AlertType.PANIC_BUTTON:
         return `${wardName} has pressed the panic button. Emergency response needed.`;
+      case AlertType.THROWN_AWAY:
+        return `CRITICAL: ${wardName}'s device may have been thrown away or damaged. Last known location recorded. IMMEDIATE attention required.`;
+      case AlertType.FAKE_SHUTDOWN:
+        return `EMERGENCY: ${wardName} may be in danger. They attempted to power off their device, which could indicate duress. IMMEDIATE contact required.`;
       case AlertType.LOCATION_LOST:
         return `Location tracking for ${wardName} has been lost. Last known location available.`;
       case AlertType.BATTERY_LOW:
