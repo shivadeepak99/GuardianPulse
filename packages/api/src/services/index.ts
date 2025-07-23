@@ -6,6 +6,8 @@ export { S3Service } from './s3.service';
 export { AlertService, AlertType, AlertPriority } from './alert.service';
 export { AnomalyDetectionService } from './anomaly.service';
 export { EmailService, emailService } from './email.service';
+export { RedisService, redisService } from './redis.service';
+export { ConfigService, configService } from './config.service';
 export type { AlertData } from './alert.service';
 export type { SensorData } from './anomaly.service';
 export type { EmailOptions, IncidentEmailData } from './email.service';

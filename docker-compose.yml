@@ -25,6 +25,25 @@ services:
     networks:
       - guardian-pulse-network
 
+  # Redis In-Memory Data Store
+  redis:
+    image: redis:alpine
+    container_name: guardian-pulse-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - guardian-pulse-network
+
   api:
     build:
       context: ./packages/api
@@ -36,9 +55,12 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://guardianpulse:guardian_secure_2025@postgres:5432/guardianpulse_db
+      - REDIS_URL=redis://redis:6379
     restart: unless-stopped
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
@@ -61,6 +83,7 @@ services:
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://guardianpulse:guardian_secure_2025@postgres:5432/guardianpulse_db
+      - REDIS_URL=redis://redis:6379
     volumes:
       # Mount source code for hot-reloading
       - ./packages/api/src:/app/src:ro
@@ -73,6 +96,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     profiles:
       - dev
     networks:
@@ -80,6 +105,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
     driver: local
 
 networks:

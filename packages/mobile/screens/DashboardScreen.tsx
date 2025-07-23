@@ -17,6 +17,9 @@ import { useAuth } from "../contexts/AuthContext";
 import { useSocket } from "../src/contexts/SocketContext";
 import { useLocation } from "../hooks/useLocation";
 import { useAudio } from "../hooks/useAudio";
+import { useOnboarding } from "../hooks/useOnboarding";
+import { useDeviceStatus } from "../hooks/useDeviceStatus";
+import OnboardingModal from "../components/OnboardingModal";
 
 const { width } = Dimensions.get("window");
 
@@ -48,7 +51,23 @@ const DashboardScreen: React.FC = () => {
   } = useAudio({
     serverUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001",
     guardianId: user?.id || "",
-    enabled: isTracking, // Only enable when in Live Mode
+  });
+
+  // Onboarding state
+  const { shouldShow: shouldShowOnboarding, markOnboardingCompleted } =
+    useOnboarding();
+
+  // Device status monitoring
+  const {
+    getBatteryPercentage,
+    getBatteryColor,
+    getBatteryStatusText,
+    connectionQuality,
+    isConnected: deviceConnected,
+  } = useDeviceStatus({
+    updateInterval: 30000, // Update every 30 seconds
+    enableBatteryMonitoring: true,
+    enableConnectionMonitoring: true,
   });
 
   const [isLive, setIsLive] = useState(false);
@@ -80,6 +99,22 @@ const DashboardScreen: React.FC = () => {
       secretTapTimer.current = setTimeout(() => {
         setSecretTapCount(0);
       }, TAP_TIMEOUT);
+    }
+  };
+
+  // Get connection quality color
+  const getConnectionQualityColor = () => {
+    switch (connectionQuality) {
+      case "excellent":
+        return "#10B981"; // Green
+      case "good":
+        return "#F59E0B"; // Orange
+      case "poor":
+        return "#EF4444"; // Red
+      case "disconnected":
+        return "#6B7280"; // Gray
+      default:
+        return "#6B7280";
     }
   };
 
@@ -460,6 +495,53 @@ const DashboardScreen: React.FC = () => {
               )}
             </View>
 
+            {/* Device Status Card */}
+            <View style={styles.statusCard}>
+              <Text style={styles.cardTitle}>Device Status</Text>
+
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Battery Level:</Text>
+                <View style={styles.batteryContainer}>
+                  <View
+                    style={[
+                      styles.batteryIndicator,
+                      { backgroundColor: getBatteryColor() },
+                    ]}
+                  >
+                    <Text style={styles.batteryText}>
+                      {getBatteryStatusText()}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Connection Quality:</Text>
+                <View
+                  style={[
+                    styles.connectionQualityIndicator,
+                    { backgroundColor: getConnectionQualityColor() },
+                  ]}
+                >
+                  <Text style={styles.connectionQualityText}>
+                    {connectionQuality.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Device Online:</Text>
+                <Text
+                  style={[
+                    styles.infoValue,
+                    { color: deviceConnected ? "#10B981" : "#EF4444" },
+                  ]}
+                >
+                  {deviceConnected ? "Yes" : "No"}
+                </Text>
+              </View>
+            </View>
+
             {/* Location Details Card */}
             <View style={styles.locationCard}>
               <View style={styles.locationHeader}>
@@ -616,6 +698,13 @@ const DashboardScreen: React.FC = () => {
           <Text style={styles.logoutButtonText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Onboarding Modal */}
+      <OnboardingModal
+        visible={shouldShowOnboarding}
+        onComplete={markOnboardingCompleted}
+        userEmail={user?.email}
+      />
     </SafeAreaView>
   );
 };
@@ -1101,6 +1190,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
     color: "#6366F1",
+  },
+
+  // Device Status Styles
+  batteryContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  batteryIndicator: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 60,
+    alignItems: "center",
+  },
+  batteryText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  connectionQualityIndicator: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  connectionQualityText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });
 

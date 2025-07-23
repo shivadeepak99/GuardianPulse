@@ -5,7 +5,7 @@ import swaggerUi from 'swagger-ui-express';
 import { config } from './config';
 import swaggerSpec from './config/swagger';
 import { Logger } from './utils';
-import { DatabaseService } from './services';
+import { DatabaseService, redisService, configService } from './services';
 import {
   requestLogger,
   errorHandler,
@@ -41,6 +41,12 @@ class GuardianPulseServer {
       // Initialize database connection
       await this.initializeDatabase();
 
+      // Initialize Redis connection
+      await this.initializeRedis();
+
+      // Initialize configuration service
+      await this.initializeConfig();
+
       // Initialize application components
       this.initializeMiddlewares();
       this.initializeRoutes();
@@ -63,6 +69,32 @@ class GuardianPulseServer {
       Logger.info('Database initialized successfully');
     } catch (error) {
       Logger.error('Database initialization failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Initialize Redis connection for data buffering
+   */
+  private async initializeRedis(): Promise<void> {
+    try {
+      await redisService.connect();
+      Logger.info('Redis service initialized successfully');
+    } catch (error) {
+      Logger.warn('Redis initialization failed - continuing without Redis buffering', error);
+      // Don't throw error - Redis is optional for core functionality
+    }
+  }
+
+  /**
+   * Initialize configuration service
+   */
+  private async initializeConfig(): Promise<void> {
+    try {
+      await configService.initialize();
+      Logger.info('Configuration service initialized successfully');
+    } catch (error) {
+      Logger.error('Configuration service initialization failed', error);
       throw error;
     }
   }

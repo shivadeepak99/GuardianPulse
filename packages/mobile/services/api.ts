@@ -1,16 +1,16 @@
-import axios, { AxiosResponse, AxiosError } from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios, { AxiosResponse, AxiosError } from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // API Configuration
-const API_BASE_URL = 'http://localhost:3001/api'; // Development URL
-const TOKEN_KEY = 'guardian_pulse_token';
+const API_BASE_URL = "http://localhost:3001/api"; // Development URL
+const TOKEN_KEY = "guardian_pulse_token";
 
 // Create axios instance
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -23,13 +23,13 @@ apiClient.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch (error) {
-      console.error('Error retrieving token:', error);
+      console.error("Error retrieving token:", error);
     }
     return config;
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor to handle authentication errors
@@ -42,7 +42,7 @@ apiClient.interceptors.response.use(
       // You can add navigation logic here if needed
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 // Authentication interfaces
@@ -89,28 +89,34 @@ export const authAPI = {
   // User login
   async login(credentials: LoginRequest): Promise<AuthResponse> {
     try {
-      const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
-      
+      const response = await apiClient.post<AuthResponse>(
+        "/auth/login",
+        credentials,
+      );
+
       if (response.data.success && response.data.data?.token) {
         // Store JWT token in AsyncStorage
         await AsyncStorage.setItem(TOKEN_KEY, response.data.data.token);
-        
+
         // Store user data
-        await AsyncStorage.setItem('user_data', JSON.stringify(response.data.data.user));
+        await AsyncStorage.setItem(
+          "user_data",
+          JSON.stringify(response.data.data.user),
+        );
       }
-      
+
       return response.data;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       if (axios.isAxiosError(error) && error.response) {
         return {
           success: false,
-          message: error.response.data?.message || 'Login failed'
+          message: error.response.data?.message || "Login failed",
         };
       }
       return {
         success: false,
-        message: 'Network error. Please check your connection.'
+        message: "Network error. Please check your connection.",
       };
     }
   },
@@ -118,28 +124,34 @@ export const authAPI = {
   // User registration
   async register(userData: RegisterRequest): Promise<AuthResponse> {
     try {
-      const response = await apiClient.post<AuthResponse>('/auth/register', userData);
-      
+      const response = await apiClient.post<AuthResponse>(
+        "/auth/register",
+        userData,
+      );
+
       if (response.data.success && response.data.data?.token) {
         // Store JWT token in AsyncStorage
         await AsyncStorage.setItem(TOKEN_KEY, response.data.data.token);
-        
+
         // Store user data
-        await AsyncStorage.setItem('user_data', JSON.stringify(response.data.data.user));
+        await AsyncStorage.setItem(
+          "user_data",
+          JSON.stringify(response.data.data.user),
+        );
       }
-      
+
       return response.data;
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error("Registration error:", error);
       if (axios.isAxiosError(error) && error.response) {
         return {
           success: false,
-          message: error.response.data?.message || 'Registration failed'
+          message: error.response.data?.message || "Registration failed",
         };
       }
       return {
         success: false,
-        message: 'Network error. Please check your connection.'
+        message: "Network error. Please check your connection.",
       };
     }
   },
@@ -148,19 +160,19 @@ export const authAPI = {
   async logout(): Promise<void> {
     try {
       // Clear stored data
-      await AsyncStorage.multiRemove([TOKEN_KEY, 'user_data']);
+      await AsyncStorage.multiRemove([TOKEN_KEY, "user_data"]);
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     }
   },
 
   // Get current user from storage
   async getCurrentUser(): Promise<User | null> {
     try {
-      const userData = await AsyncStorage.getItem('user_data');
+      const userData = await AsyncStorage.getItem("user_data");
       return userData ? JSON.parse(userData) : null;
     } catch (error) {
-      console.error('Error getting current user:', error);
+      console.error("Error getting current user:", error);
       return null;
     }
   },
@@ -171,7 +183,7 @@ export const authAPI = {
       const token = await AsyncStorage.getItem(TOKEN_KEY);
       return !!token;
     } catch (error) {
-      console.error('Error checking authentication:', error);
+      console.error("Error checking authentication:", error);
       return false;
     }
   },
@@ -181,10 +193,78 @@ export const authAPI = {
     try {
       return await AsyncStorage.getItem(TOKEN_KEY);
     } catch (error) {
-      console.error('Error getting token:', error);
+      console.error("Error getting token:", error);
       return null;
     }
-  }
+  },
+};
+
+// Guardian Invitation interfaces
+export interface GuardianInvitationRequest {
+  inviteeEmail: string;
+  message?: string;
+}
+
+export interface GuardianInvitationResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    invitation: {
+      id: string;
+      inviteeEmail: string;
+      message?: string;
+      status: string;
+      createdAt: string;
+    };
+  };
+}
+
+// Guardian API functions
+export const guardianAPI = {
+  // Send guardian invitation
+  async inviteGuardian(
+    invitation: GuardianInvitationRequest,
+  ): Promise<GuardianInvitationResponse> {
+    try {
+      const response = await apiClient.post<GuardianInvitationResponse>(
+        "/guardian/invite",
+        invitation,
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Guardian invitation error:", error);
+      if (axios.isAxiosError(error) && error.response) {
+        return {
+          success: false,
+          message: error.response.data?.message || "Failed to send invitation",
+        };
+      }
+      return {
+        success: false,
+        message: "Network error. Please check your connection.",
+      };
+    }
+  },
+
+  // Get pending invitations
+  async getInvitations(): Promise<any> {
+    try {
+      const response = await apiClient.get("/guardian/invitations");
+      return response.data;
+    } catch (error) {
+      console.error("Get invitations error:", error);
+      if (axios.isAxiosError(error) && error.response) {
+        return {
+          success: false,
+          message: error.response.data?.message || "Failed to get invitations",
+        };
+      }
+      return {
+        success: false,
+        message: "Network error. Please check your connection.",
+      };
+    }
+  },
 };
 
 // Impact Detection interfaces
@@ -208,7 +288,7 @@ export interface ImpactEventData {
     impactPhase: boolean;
     confidence: number;
   };
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   location?: {
     latitude: number;
     longitude: number;
@@ -231,12 +311,14 @@ export interface ImpactDetectionResponse {
 // Impact Detection API
 export const impactAPI = {
   // Report impact detection event
-  async reportImpact(eventData: ImpactEventData): Promise<ImpactDetectionResponse> {
+  async reportImpact(
+    eventData: ImpactEventData,
+  ): Promise<ImpactDetectionResponse> {
     try {
-      const response = await apiClient.post('/impact/report', eventData);
+      const response = await apiClient.post("/impact/report", eventData);
       return response.data;
     } catch (error) {
-      console.error('Error reporting impact:', error);
+      console.error("Error reporting impact:", error);
       throw error;
     }
   },
@@ -247,20 +329,20 @@ export const impactAPI = {
       const response = await apiClient.get(`/impact/history?limit=${limit}`);
       return response.data;
     } catch (error) {
-      console.error('Error getting impact history:', error);
+      console.error("Error getting impact history:", error);
       throw error;
     }
   },
 
   // Update impact status (false alarm, confirmed, etc.)
   async updateImpactStatus(
-    impactId: string, 
-    status: 'CONFIRMED' | 'FALSE_ALARM' | 'RESOLVED'
+    impactId: string,
+    status: "CONFIRMED" | "FALSE_ALARM" | "RESOLVED",
   ): Promise<void> {
     try {
       await apiClient.patch(`/impact/${impactId}/status`, { status });
     } catch (error) {
-      console.error('Error updating impact status:', error);
+      console.error("Error updating impact status:", error);
       throw error;
     }
   },
@@ -268,13 +350,13 @@ export const impactAPI = {
   // Test impact detection system
   async testImpactDetection(): Promise<{ success: boolean; message: string }> {
     try {
-      const response = await apiClient.post('/impact/test');
+      const response = await apiClient.post("/impact/test");
       return response.data;
     } catch (error) {
-      console.error('Error testing impact detection:', error);
+      console.error("Error testing impact detection:", error);
       throw error;
     }
-  }
+  },
 };
 
 // Export the configured axios instance for other API calls

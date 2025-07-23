@@ -3,6 +3,7 @@ import userRoutes from './user.routes';
 import guardianRoutes from './guardians';
 import evidenceRoutes from './evidence';
 import incidentRoutes from './incidents';
+import configRoutes from './config.routes';
 
 /**
  * Main API Routes
@@ -21,6 +22,9 @@ routes.use('/evidence', evidenceRoutes);
 
 // Mount incident routes
 routes.use('/incidents', incidentRoutes);
+
+// Mount configuration routes (admin only)
+routes.use('/config', configRoutes);
 
 /**
  * @swagger

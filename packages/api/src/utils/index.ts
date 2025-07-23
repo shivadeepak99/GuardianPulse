@@ -1,44 +1,9 @@
+import { Logger } from './logger';
+
 /**
- * Logger utility for structured logging
+ * Export the production-grade Winston logger
  */
-export class Logger {
-  private static getTimestamp(): string {
-    return new Date().toISOString();
-  }
-
-  private static formatMessage(level: string, message: string, data?: unknown): string {
-    const timestamp = this.getTimestamp();
-    const baseLog = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
-    
-    if (data) {
-      return `${baseLog} ${JSON.stringify(data, null, 2)}`;
-    }
-    
-    return baseLog;
-  }
-
-  public static info(message: string, data?: unknown): void {
-    // eslint-disable-next-line no-console
-    console.log(this.formatMessage('info', message, data));
-  }
-
-  public static warn(message: string, data?: unknown): void {
-    // eslint-disable-next-line no-console
-    console.warn(this.formatMessage('warn', message, data));
-  }
-
-  public static error(message: string, data?: unknown): void {
-    // eslint-disable-next-line no-console
-    console.error(this.formatMessage('error', message, data));
-  }
-
-  public static debug(message: string, data?: unknown): void {
-    if (process.env['NODE_ENV'] === 'development') {
-      // eslint-disable-next-line no-console
-      console.debug(this.formatMessage('debug', message, data));
-    }
-  }
-}
+export { Logger };
 
 /**
  * Response utility for consistent API responses

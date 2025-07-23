@@ -148,6 +148,9 @@ model Incident {
   resolvedAt    DateTime?     // When the incident was resolved
   resolvedBy    String?       // ID of user who resolved the incident
   
+  // Pre-incident data buffering - Prompt #48
+  preIncidentData Json?       // Buffered location and sensor data from Redis
+  
   // Indexes for performance
   @@map("incidents")
   @@index([wardId])
@@ -182,6 +185,27 @@ model Evidence {
   @@index([incidentId])
   @@index([type])
   @@index([createdAt])
+}
+
+// Application Configuration Model - Prompt #49
+// Stores dynamic configuration values and feature flags
+model AppConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Additional metadata
+  description String?  // Human-readable description of the config
+  category    String?  // Group related configs (e.g., "fall_detection", "alerts")
+  isActive    Boolean  @default(true)
+  
+  // Indexes for performance
+  @@map("app_config")
+  @@index([key])
+  @@index([category])
+  @@index([isActive])
 }
 
 // Additional models can be added here for future features:

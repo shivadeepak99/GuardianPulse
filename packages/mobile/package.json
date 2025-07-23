@@ -15,6 +15,7 @@
     "axios": "^1.10.0",
     "expo": "~53.0.20",
     "expo-av": "^15.1.7",
+    "expo-battery": "^7.1.0",
     "expo-location": "^18.1.6",
     "expo-sensors": "^14.1.4",
     "expo-status-bar": "~2.2.3",

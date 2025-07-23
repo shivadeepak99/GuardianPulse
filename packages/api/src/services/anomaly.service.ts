@@ -1,5 +1,7 @@
 import { DatabaseService } from './database.service';
 import { AlertService, AlertType, AlertPriority } from './alert.service';
+import { configService } from './config.service';
+import { redisService } from './redis.service';
 import { Logger } from '../utils';
 
 /**
@@ -41,7 +43,7 @@ interface FallDetectionResult {
 
 /**
  * Anomaly Detection Service
- * 
+ *
  * This service processes sensor data from mobile devices and detects
  * potential safety incidents like falls. When an incident is detected,
  * it creates a persistent record and triggers alerts to guardians.
@@ -49,10 +51,10 @@ interface FallDetectionResult {
 export class AnomalyDetectionService {
   private db: ReturnType<typeof DatabaseService.getInstance>;
   private alertService: AlertService;
-  
-  // Fall detection thresholds
-  private readonly FALL_THRESHOLD = 20; // m/s² - threshold for sudden acceleration
-  private readonly FALL_CONFIDENCE_THRESHOLD = 0.7; // minimum confidence for fall detection
+
+  // Default fall detection thresholds (fallback values)
+  private readonly DEFAULT_FALL_THRESHOLD = 20; // m/s² - threshold for sudden acceleration
+  private readonly DEFAULT_FALL_CONFIDENCE_THRESHOLD = 0.7; // minimum confidence for fall detection
 
   constructor() {
     this.db = DatabaseService.getInstance();
@@ -75,28 +77,23 @@ export class AnomalyDetectionService {
       }
 
       // Perform fall detection
-      const fallResult = this.detectFall(sensorData);
-      
+      const fallResult = await this.detectFall(sensorData);
+
       if (fallResult.isFallDetected) {
         Logger.warn(`Fall detected for ward ${sensorData.wardId}`, {
           confidence: fallResult.confidence,
-          acceleration: fallResult.rawAcceleration
+          acceleration: fallResult.rawAcceleration,
         });
 
         // Create incident record in database
-        const incident = await this.createIncident(
-          sensorData.wardId,
-          'FALL_DETECTED',
-          sensorData.location,
-          {
-            fallDetection: fallResult,
-            sensorData: {
-              accelerometer: sensorData.accelerometer,
-              gyroscope: sensorData.gyroscope,
-              timestamp: sensorData.timestamp
-            }
-          }
-        );
+        const incident = await this.createIncident(sensorData.wardId, 'FALL_DETECTED', sensorData.location, {
+          fallDetection: fallResult,
+          sensorData: {
+            accelerometer: sensorData.accelerometer,
+            gyroscope: sensorData.gyroscope,
+            timestamp: sensorData.timestamp,
+          },
+        });
 
         // Send alert to guardians with incident information
         await this.triggerIncidentAlert(incident.id, sensorData);
@@ -107,7 +104,6 @@ export class AnomalyDetectionService {
       // Log non-incident data for monitoring
       Logger.debug(`Sensor data processed - no incidents detected for ward ${sensorData.wardId}`);
       return false;
-
     } catch (error) {
       Logger.error(`Error processing sensor data for ward ${sensorData.wardId}:`, error);
       return false;
@@ -116,15 +112,30 @@ export class AnomalyDetectionService {
 
   /**
    * Create a new incident record in the database
+   * Includes buffered pre-incident data from Redis
    * @private
    */
   private async createIncident(
     wardId: string,
     type: 'FALL_DETECTED' | 'SOS_MANUAL' | 'THROWN_AWAY' | 'FAKE_SHUTDOWN',
     location?: { latitude: number; longitude: number },
-    metadata?: any
+    metadata?: any,
   ) {
     try {
+      // Get buffered pre-incident data from Redis
+      let preIncidentData = null;
+      if (redisService.isRedisConnected()) {
+        try {
+          preIncidentData = await redisService.getPreIncidentData(wardId);
+          Logger.info(`Retrieved pre-incident data for ward ${wardId}`, {
+            locationPoints: preIncidentData.locationData.length,
+            sensorPoints: preIncidentData.sensorData.length,
+          });
+        } catch (error) {
+          Logger.warn(`Failed to retrieve pre-incident data for ward ${wardId}:`, error);
+        }
+      }
+
       const incident = await this.db.incident.create({
         data: {
           wardId,
@@ -134,6 +145,7 @@ export class AnomalyDetectionService {
           longitude: location?.longitude ?? null,
           description: this.generateIncidentDescription(type, metadata),
           severity: this.getIncidentSeverity(type),
+          ...(preIncidentData && { preIncidentData }),
         },
         include: {
           ward: {
@@ -141,16 +153,16 @@ export class AnomalyDetectionService {
               id: true,
               firstName: true,
               lastName: true,
-              email: true
-            }
-          }
-        }
+              email: true,
+            },
+          },
+        },
       });
 
       Logger.info(`Incident created: ${incident.id} for ward ${wardId}`, {
         type,
         severity: incident.severity,
-        hasLocation: !!location
+        hasLocation: !!location,
       });
 
       return incident;
@@ -172,8 +184,8 @@ export class AnomalyDetectionService {
         ...(sensorData.location && {
           location: {
             latitude: sensorData.location.latitude,
-            longitude: sensorData.location.longitude
-          }
+            longitude: sensorData.location.longitude,
+          },
         }),
         message: 'Fall detected - immediate attention required',
         priority: AlertPriority.CRITICAL,
@@ -182,21 +194,20 @@ export class AnomalyDetectionService {
           incidentId,
           sensorData: {
             accelerometer: sensorData.accelerometer,
-            deviceInfo: sensorData.deviceInfo
-          }
-        }
+            deviceInfo: sensorData.deviceInfo,
+          },
+        },
       };
 
       const results = await this.alertService.sendIncidentAlert(
         sensorData.wardId,
         incidentId,
         AlertType.FALL_DETECTED,
-        alertData
+        alertData,
       );
 
       const successCount = results.filter(r => r.success).length;
       Logger.info(`Fall alert sent for incident ${incidentId}: ${successCount}/${results.length} guardians notified`);
-
     } catch (error) {
       Logger.error(`Failed to send incident alert for incident ${incidentId}:`, error);
       throw error;
@@ -205,36 +216,45 @@ export class AnomalyDetectionService {
 
   /**
    * Detect falls based on accelerometer data
+   * Uses dynamic configuration for thresholds
    * @private
    */
-  private detectFall(sensorData: SensorData): FallDetectionResult {
+  private async detectFall(sensorData: SensorData): Promise<FallDetectionResult> {
+    // Get dynamic configuration values with fallbacks
+    const fallThreshold = await configService.getConfigAsNumber(
+      'FALL_SENSITIVITY_THRESHOLD',
+      this.DEFAULT_FALL_THRESHOLD,
+    );
+    const confidenceThreshold = await configService.getConfigAsNumber(
+      'FALL_CONFIDENCE_THRESHOLD',
+      this.DEFAULT_FALL_CONFIDENCE_THRESHOLD,
+    );
+
     if (!sensorData.accelerometer) {
       return {
         isFallDetected: false,
         confidence: 0,
         rawAcceleration: 0,
-        threshold: this.FALL_THRESHOLD
+        threshold: fallThreshold,
       };
     }
 
     const { x, y, z } = sensorData.accelerometer;
-    
+
     // Calculate total acceleration magnitude
     const acceleration = Math.sqrt(x * x + y * y + z * z);
-    
+
     // Simple fall detection: sudden high acceleration
-    const isFallDetected = acceleration > this.FALL_THRESHOLD;
-    
+    const isFallDetected = acceleration > fallThreshold;
+
     // Calculate confidence based on how far above threshold
-    const confidence = isFallDetected 
-      ? Math.min(1.0, (acceleration - this.FALL_THRESHOLD) / this.FALL_THRESHOLD)
-      : 0;
+    const confidence = isFallDetected ? Math.min(1.0, (acceleration - fallThreshold) / fallThreshold) : 0;
 
     return {
-      isFallDetected: isFallDetected && confidence >= this.FALL_CONFIDENCE_THRESHOLD,
+      isFallDetected: isFallDetected && confidence >= confidenceThreshold,
       confidence,
       rawAcceleration: acceleration,
-      threshold: this.FALL_THRESHOLD
+      threshold: fallThreshold,
     };
   }
 
@@ -263,10 +283,7 @@ export class AnomalyDetectionService {
    * Generate incident description based on type and metadata
    * @private
    */
-  private generateIncidentDescription(
-    type: string, 
-    metadata?: any
-  ): string {
+  private generateIncidentDescription(type: string, metadata?: any): string {
     switch (type) {
       case 'FALL_DETECTED':
         const confidence = metadata?.fallDetection?.confidence || 0;
@@ -306,19 +323,10 @@ export class AnomalyDetectionService {
    * @param message - Optional message from the user
    * @returns Promise<Incident> - The created incident
    */
-  async createManualSOSIncident(
-    wardId: string,
-    location?: { latitude: number; longitude: number },
-    message?: string
-  ) {
+  async createManualSOSIncident(wardId: string, location?: { latitude: number; longitude: number }, message?: string) {
     try {
       // Create incident record
-      const incident = await this.createIncident(
-        wardId,
-        'SOS_MANUAL',
-        location,
-        { userMessage: message }
-      );
+      const incident = await this.createIncident(wardId, 'SOS_MANUAL', location, { userMessage: message });
 
       // Prepare alert data
       const alertData = {
@@ -327,8 +335,8 @@ export class AnomalyDetectionService {
         ...(location && {
           location: {
             latitude: location.latitude,
-            longitude: location.longitude
-          }
+            longitude: location.longitude,
+          },
         }),
         message: message || 'Emergency SOS triggered by user',
         priority: AlertPriority.EMERGENCY,
@@ -336,8 +344,8 @@ export class AnomalyDetectionService {
         metadata: {
           incidentId: incident.id,
           userMessage: message,
-          triggerMethod: 'manual'
-        }
+          triggerMethod: 'manual',
+        },
       };
 
       // Send alert to guardians
@@ -345,14 +353,15 @@ export class AnomalyDetectionService {
         wardId,
         incident.id,
         AlertType.SOS_TRIGGERED,
-        alertData
+        alertData,
       );
 
       const successCount = results.filter(r => r.success).length;
-      Logger.info(`Manual SOS alert sent for incident ${incident.id}: ${successCount}/${results.length} guardians notified`);
+      Logger.info(
+        `Manual SOS alert sent for incident ${incident.id}: ${successCount}/${results.length} guardians notified`,
+      );
 
       return incident;
-
     } catch (error) {
       Logger.error(`Failed to create manual SOS incident for ward ${wardId}:`, error);
       throw error;

@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import jwt from 'jsonwebtoken';
 import { config } from './config';
-import { DatabaseService } from './services';
+import { DatabaseService, redisService } from './services';
 import { Logger } from './utils';
 
 /**
@@ -52,6 +52,9 @@ interface LocationUpdatePayload {
 // In-memory store for active live sessions
 const activeSessions = new Map<string, LiveSessionData>();
 
+// In-memory cache for device status
+const deviceStatusCache = new Map<string, any>();
+
 /**
  * Initialize Socket.IO server with authentication middleware
  * @param httpServer - HTTP server instance to attach Socket.IO
@@ -60,11 +63,11 @@ const activeSessions = new Map<string, LiveSessionData>();
 export function initSocket(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env['FRONTEND_URL'] || "http://localhost:3000",
-      methods: ["GET", "POST"],
-      credentials: true
+      origin: process.env['FRONTEND_URL'] || 'http://localhost:3000',
+      methods: ['GET', 'POST'],
+      credentials: true,
     },
-    transports: ['websocket', 'polling']
+    transports: ['websocket', 'polling'],
   });
 
   Logger.info('Socket.IO server initialized');
@@ -73,22 +76,22 @@ export function initSocket(httpServer: HttpServer): Server {
   io.use(async (socket: AuthenticatedSocket, next) => {
     try {
       const token = socket.handshake.auth?.['token'];
-      
+
       if (!token) {
         Logger.warn('Socket connection rejected: No token provided', {
           socketId: socket.id,
-          ip: socket.handshake.address
+          ip: socket.handshake.address,
         });
         return next(new Error('Authentication required'));
       }
 
       // Verify JWT token
       const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
-      
+
       if (!decoded.userId || !decoded.email) {
         Logger.warn('Socket connection rejected: Invalid token payload', {
           socketId: socket.id,
-          ip: socket.handshake.address
+          ip: socket.handshake.address,
         });
         return next(new Error('Invalid token'));
       }
@@ -97,14 +100,14 @@ export function initSocket(httpServer: HttpServer): Server {
       const prisma = DatabaseService.getInstance();
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
-        select: { id: true, email: true, isActive: true }
+        select: { id: true, email: true, isActive: true },
       });
 
       if (!user) {
         Logger.warn('Socket connection rejected: User not found', {
           socketId: socket.id,
           userId: decoded.userId,
-          ip: socket.handshake.address
+          ip: socket.handshake.address,
         });
         return next(new Error('User not found'));
       }
@@ -113,7 +116,7 @@ export function initSocket(httpServer: HttpServer): Server {
         Logger.warn('Socket connection rejected: User account inactive', {
           socketId: socket.id,
           userId: decoded.userId,
-          ip: socket.handshake.address
+          ip: socket.handshake.address,
         });
         return next(new Error('Account inactive'));
       }
@@ -126,7 +129,7 @@ export function initSocket(httpServer: HttpServer): Server {
         socketId: socket.id,
         userId: user.id,
         email: user.email,
-        ip: socket.handshake.address
+        ip: socket.handshake.address,
       });
 
       next();
@@ -134,9 +137,9 @@ export function initSocket(httpServer: HttpServer): Server {
       Logger.error('Socket authentication failed', {
         socketId: socket.id,
         error: error instanceof Error ? error.message : 'Unknown error',
-        ip: socket.handshake.address
+        ip: socket.handshake.address,
       });
-      
+
       if (error instanceof jwt.JsonWebTokenError) {
         next(new Error('Invalid token'));
       } else if (error instanceof jwt.TokenExpiredError) {
@@ -153,7 +156,7 @@ export function initSocket(httpServer: HttpServer): Server {
       socketId: socket.id,
       userId: socket.userId,
       email: socket.userEmail,
-      connectedClients: io.engine.clientsCount
+      connectedClients: io.engine.clientsCount,
     });
 
     // Join user-specific room for targeted messaging
@@ -162,7 +165,7 @@ export function initSocket(httpServer: HttpServer): Server {
       Logger.debug('Socket joined user room', {
         socketId: socket.id,
         userId: socket.userId,
-        room: `user:${socket.userId}`
+        room: `user:${socket.userId}`,
       });
     }
 
@@ -170,16 +173,16 @@ export function initSocket(httpServer: HttpServer): Server {
     socket.on('ping', () => {
       socket.emit('pong', {
         timestamp: new Date().toISOString(),
-        serverId: process.env['SERVER_ID'] || 'main'
+        serverId: process.env['SERVER_ID'] || 'main',
       });
     });
 
     // Handle user status updates
-    socket.on('status:update', (data) => {
+    socket.on('status:update', data => {
       Logger.debug('User status update received', {
         socketId: socket.id,
         userId: socket.userId,
-        status: data?.status
+        status: data?.status,
       });
 
       // Broadcast status to user's connections
@@ -187,17 +190,17 @@ export function initSocket(httpServer: HttpServer): Server {
         socket.to(`user:${socket.userId}`).emit('status:updated', {
           userId: socket.userId,
           status: data?.status,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     });
 
     // Handle location updates (legacy - for non-session use cases)
-    socket.on('location:update', (data) => {
+    socket.on('location:update', data => {
       Logger.debug('Legacy location update received', {
         socketId: socket.id,
         userId: socket.userId,
-        hasCoordinates: !!(data?.latitude && data?.longitude)
+        hasCoordinates: !!(data?.latitude && data?.longitude),
       });
 
       // For legacy compatibility - basic location acknowledgment
@@ -205,17 +208,17 @@ export function initSocket(httpServer: HttpServer): Server {
       socket.emit('location:acknowledged', {
         timestamp: new Date().toISOString(),
         status: 'received',
-        note: 'For live session tracking, use update-location event'
+        note: 'For live session tracking, use update-location event',
       });
     });
 
     // Handle emergency alerts
-    socket.on('emergency:alert', async (data) => {
+    socket.on('emergency:alert', async data => {
       Logger.warn('Emergency alert received', {
         socketId: socket.id,
         userId: socket.userId,
         alertType: data?.type,
-        severity: data?.severity
+        severity: data?.severity,
       });
 
       try {
@@ -231,7 +234,7 @@ export function initSocket(httpServer: HttpServer): Server {
           alertId: `alert_${Date.now()}_${socket.userId}`,
           timestamp: new Date().toISOString(),
           status: 'processing',
-          message: 'Emergency alert received and being processed'
+          message: 'Emergency alert received and being processed',
         });
 
         // Broadcast to monitoring systems (if any)
@@ -239,48 +242,47 @@ export function initSocket(httpServer: HttpServer): Server {
           userId: socket.userId,
           userEmail: socket.userEmail,
           alertData: data,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
-
       } catch (error) {
         Logger.error('Failed to process emergency alert', {
           socketId: socket.id,
           userId: socket.userId,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
 
         socket.emit('emergency:error', {
           message: 'Failed to process emergency alert',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     });
 
     // Handle custom events
-    socket.on('message', (data) => {
+    socket.on('message', data => {
       Logger.debug('Custom message received', {
         socketId: socket.id,
         userId: socket.userId,
-        messageType: data?.type
+        messageType: data?.type,
       });
 
       // Echo message back with timestamp
       socket.emit('message:received', {
         ...data,
         timestamp: new Date().toISOString(),
-        serverId: process.env['SERVER_ID'] || 'main'
+        serverId: process.env['SERVER_ID'] || 'main',
       });
     });
 
     // Live Session Management - Prompt #14
-    
+
     // Handle start live session
-    socket.on('start-live-session', async (data) => {
+    socket.on('start-live-session', async data => {
       try {
         if (!socket.userId) {
           socket.emit('session-error', {
             message: 'User not authenticated',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
@@ -288,14 +290,14 @@ export function initSocket(httpServer: HttpServer): Server {
         Logger.info('Starting live session', {
           socketId: socket.id,
           userId: socket.userId,
-          sessionData: data
+          sessionData: data,
         });
 
         // Check if user already has an active session
         if (activeSessions.has(socket.userId)) {
           socket.emit('session-error', {
             message: 'Session already active',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
@@ -309,7 +311,7 @@ export function initSocket(httpServer: HttpServer): Server {
         const guardianRelationships = await prisma.guardianRelationship.findMany({
           where: {
             wardId: socket.userId,
-            isActive: true
+            isActive: true,
           },
           include: {
             guardian: {
@@ -317,10 +319,10 @@ export function initSocket(httpServer: HttpServer): Server {
                 id: true,
                 firstName: true,
                 lastName: true,
-                email: true
-              }
-            }
-          }
+                email: true,
+              },
+            },
+          },
         });
 
         const guardianIds = guardianRelationships.map((rel: any) => rel.guardianId);
@@ -331,7 +333,7 @@ export function initSocket(httpServer: HttpServer): Server {
           startTime: new Date(),
           sessionId,
           roomName,
-          guardianIds
+          guardianIds,
         };
         activeSessions.set(socket.userId, sessionData);
 
@@ -345,14 +347,14 @@ export function initSocket(httpServer: HttpServer): Server {
           for (const guardianSocket of guardianSockets) {
             await guardianSocket.join(roomName);
             connectedGuardians.push(guardianId);
-            
+
             // Notify guardian about new live session
             guardianSocket.emit('guardian:session-started', {
               wardId: socket.userId,
               wardEmail: socket.userEmail,
               sessionId,
               startTime: sessionData.startTime,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
             });
           }
         }
@@ -362,7 +364,7 @@ export function initSocket(httpServer: HttpServer): Server {
           sessionId,
           roomName,
           totalGuardians: guardianIds.length,
-          connectedGuardians: connectedGuardians.length
+          connectedGuardians: connectedGuardians.length,
         });
 
         // Emit session-started event back to the Ward
@@ -372,19 +374,18 @@ export function initSocket(httpServer: HttpServer): Server {
           roomName,
           guardians: guardianRelationships.map((rel: any) => rel.guardian),
           connectedGuardians: connectedGuardians.length,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
-
       } catch (error) {
         Logger.error('Failed to start live session', {
           socketId: socket.id,
           userId: socket.userId,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
 
         socket.emit('session-error', {
           message: 'Failed to start live session',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     });
@@ -395,14 +396,14 @@ export function initSocket(httpServer: HttpServer): Server {
         if (!socket.userId) {
           socket.emit('session-error', {
             message: 'User not authenticated',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
 
         Logger.info('Stopping live session', {
           socketId: socket.id,
-          userId: socket.userId
+          userId: socket.userId,
         });
 
         // Get session data
@@ -410,7 +411,7 @@ export function initSocket(httpServer: HttpServer): Server {
         if (!sessionData) {
           socket.emit('session-error', {
             message: 'No active session found',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
@@ -430,7 +431,7 @@ export function initSocket(httpServer: HttpServer): Server {
           startTime: sessionData.startTime,
           endTime,
           duration: Math.round(duration / 1000), // duration in seconds
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
 
         // Remove all sockets from the session room
@@ -442,32 +443,31 @@ export function initSocket(httpServer: HttpServer): Server {
         Logger.info('Live session stopped successfully', {
           userId: socket.userId,
           sessionId: sessionData.sessionId,
-          duration: Math.round(duration / 1000) + 's'
+          duration: Math.round(duration / 1000) + 's',
         });
-
       } catch (error) {
         Logger.error('Failed to stop live session', {
           socketId: socket.id,
           userId: socket.userId,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
 
         socket.emit('session-error', {
           message: 'Failed to stop live session',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     });
 
     // Real-time Location Tracking - Prompt #15
-    
+
     // Handle location updates during active sessions
     socket.on('update-location', async (data: LocationUpdatePayload) => {
       try {
         if (!socket.userId) {
           socket.emit('location-error', {
             message: 'User not authenticated',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
@@ -476,19 +476,19 @@ export function initSocket(httpServer: HttpServer): Server {
           socketId: socket.id,
           userId: socket.userId,
           hasCoordinates: !!(data?.latitude && data?.longitude),
-          accuracy: data?.accuracy
+          accuracy: data?.accuracy,
         });
 
         // Verify that the Ward has an active session
         const sessionData = activeSessions.get(socket.userId);
         if (!sessionData) {
           Logger.debug('Location update ignored - no active session', {
-            userId: socket.userId
+            userId: socket.userId,
           });
-          
+
           socket.emit('location-error', {
             message: 'No active session found. Start a live session to share location.',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
@@ -497,7 +497,7 @@ export function initSocket(httpServer: HttpServer): Server {
         if (!data || typeof data.latitude !== 'number' || typeof data.longitude !== 'number') {
           socket.emit('location-error', {
             message: 'Invalid location data. Latitude and longitude are required.',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
@@ -506,7 +506,7 @@ export function initSocket(httpServer: HttpServer): Server {
         if (data.latitude < -90 || data.latitude > 90 || data.longitude < -180 || data.longitude > 180) {
           socket.emit('location-error', {
             message: 'Invalid coordinate values. Latitude must be between -90 and 90, longitude between -180 and 180.',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
@@ -520,7 +520,7 @@ export function initSocket(httpServer: HttpServer): Server {
         } = {
           latitude: data.latitude,
           longitude: data.longitude,
-          timestamp: new Date()
+          timestamp: new Date(),
         };
 
         if (data.accuracy !== undefined) {
@@ -529,6 +529,19 @@ export function initSocket(httpServer: HttpServer): Server {
 
         sessionData.lastLocation = locationUpdate;
         activeSessions.set(socket.userId, sessionData);
+
+        // Buffer location data in Redis for incident analysis
+        if (redisService.isRedisConnected()) {
+          await redisService.bufferLocationData(socket.userId, {
+            latitude: data.latitude,
+            longitude: data.longitude,
+            accuracy: data.accuracy,
+            altitude: data.altitude,
+            heading: data.heading,
+            speed: data.speed,
+            sessionId: sessionData.sessionId,
+          });
+        }
 
         // Prepare broadcast payload for guardians
         const broadcastPayload = {
@@ -542,9 +555,9 @@ export function initSocket(httpServer: HttpServer): Server {
             altitude: data.altitude,
             heading: data.heading,
             speed: data.speed,
-            timestamp: locationUpdate.timestamp.toISOString()
+            timestamp: locationUpdate.timestamp.toISOString(),
           },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         };
 
         // Broadcast location-updated event to the Ward's specific room (guardians)
@@ -555,7 +568,7 @@ export function initSocket(httpServer: HttpServer): Server {
           sessionId: sessionData.sessionId,
           roomName: sessionData.roomName,
           guardianCount: sessionData.guardianIds.length,
-          coordinates: `${data.latitude}, ${data.longitude}`
+          coordinates: `${data.latitude}, ${data.longitude}`,
         });
 
         // Acknowledge location update to the Ward
@@ -563,32 +576,106 @@ export function initSocket(httpServer: HttpServer): Server {
           sessionId: sessionData.sessionId,
           timestamp: locationUpdate.timestamp.toISOString(),
           status: 'broadcasted',
-          guardianCount: sessionData.guardianIds.length
+          guardianCount: sessionData.guardianIds.length,
         });
-
       } catch (error) {
         Logger.error('Failed to process location update', {
           socketId: socket.id,
           userId: socket.userId,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
 
         socket.emit('location-error', {
           message: 'Failed to process location update',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
+    // Handle sensor data updates (accelerometer, gyroscope) - for anomaly detection
+    socket.on('update-sensor-data', async data => {
+      try {
+        if (!socket.userId) {
+          socket.emit('sensor-error', {
+            message: 'User not authenticated',
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+
+        Logger.debug('Sensor data update received', {
+          socketId: socket.id,
+          userId: socket.userId,
+          hasAccelerometer: !!data?.accelerometer,
+          hasGyroscope: !!data?.gyroscope,
+        });
+
+        // Validate sensor data structure
+        if (!data || (!data.accelerometer && !data.gyroscope)) {
+          socket.emit('sensor-error', {
+            message: 'Invalid sensor data. At least accelerometer or gyroscope data is required.',
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+
+        // Buffer sensor data in Redis for incident analysis
+        if (redisService.isRedisConnected()) {
+          await redisService.bufferSensorData(socket.userId, {
+            accelerometer: data.accelerometer,
+            gyroscope: data.gyroscope,
+            deviceInfo: data.deviceInfo,
+            sessionId: activeSessions.get(socket.userId)?.sessionId,
+          });
+        }
+
+        // Optional: Broadcast sensor data to guardians if they need real-time updates
+        const sessionData = activeSessions.get(socket.userId);
+        if (sessionData) {
+          // Sensor data broadcasting is optional - can be enabled based on requirements
+          // const broadcastPayload = {
+          //   wardId: socket.userId,
+          //   wardEmail: socket.userEmail,
+          //   sessionId: sessionData.sessionId,
+          //   sensorData: {
+          //     accelerometer: data.accelerometer,
+          //     gyroscope: data.gyroscope,
+          //     timestamp: new Date().toISOString()
+          //   },
+          //   timestamp: new Date().toISOString()
+          // };
+          // Broadcast to guardians (optional - can be enabled based on requirements)
+          // io.to(sessionData.roomName).emit('sensor-data-updated', broadcastPayload);
+        }
+
+        // Acknowledge sensor data update
+        socket.emit('sensor-acknowledged', {
+          timestamp: new Date().toISOString(),
+          status: 'buffered',
+        });
+      } catch (error) {
+        Logger.error('Failed to process sensor data update', {
+          socketId: socket.id,
+          userId: socket.userId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+
+        socket.emit('sensor-error', {
+          message: 'Failed to process sensor data update',
+          timestamp: new Date().toISOString(),
         });
       }
     });
 
     // Real-time Audio Streaming - Prompt #32
-    
+
     // Handle audio stream chunks during active sessions
-    socket.on('audio-stream', async (data) => {
+    socket.on('audio-stream', async data => {
       try {
         if (!socket.userId) {
           socket.emit('audio-error', {
             message: 'User not authenticated',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
@@ -598,19 +685,19 @@ export function initSocket(httpServer: HttpServer): Server {
           userId: socket.userId,
           hasAudioData: !!data?.audioData,
           format: data?.format,
-          timestamp: data?.timestamp
+          timestamp: data?.timestamp,
         });
 
         // Verify that the Ward has an active session
         const sessionData = activeSessions.get(socket.userId);
         if (!sessionData) {
           Logger.debug('Audio stream ignored - no active session', {
-            userId: socket.userId
+            userId: socket.userId,
           });
-          
+
           socket.emit('audio-error', {
             message: 'No active session found. Start a live session to stream audio.',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
@@ -619,7 +706,7 @@ export function initSocket(httpServer: HttpServer): Server {
         if (!data || !data.audioData || !data.timestamp) {
           socket.emit('audio-error', {
             message: 'Invalid audio data. Audio data and timestamp are required.',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
@@ -636,7 +723,7 @@ export function initSocket(httpServer: HttpServer): Server {
             channels: data.channels || 1,
             chunkIndex: Date.now(), // Unique identifier for this chunk
           },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         };
 
         // Broadcast audio chunk to the Ward's guardians
@@ -648,7 +735,7 @@ export function initSocket(httpServer: HttpServer): Server {
           roomName: sessionData.roomName,
           guardianCount: sessionData.guardianIds.length,
           audioFormat: data.format,
-          chunkSize: data.audioData?.length || 0
+          chunkSize: data.audioData?.length || 0,
         });
 
         // Acknowledge audio chunk to the Ward
@@ -657,32 +744,167 @@ export function initSocket(httpServer: HttpServer): Server {
           timestamp: new Date().toISOString(),
           status: 'broadcasted',
           guardianCount: sessionData.guardianIds.length,
-          chunkIndex: audioChunkPayload.audio.chunkIndex
+          chunkIndex: audioChunkPayload.audio.chunkIndex,
         });
-
       } catch (error) {
         Logger.error('Failed to process audio stream', {
           socketId: socket.id,
           userId: socket.userId,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
 
         socket.emit('audio-error', {
           message: 'Failed to process audio stream',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
+    // Real-time Device Status & Battery Level - Prompt #47
+
+    // Handle device status updates (battery, connection state, etc.)
+    socket.on('update-device-status', async data => {
+      try {
+        if (!socket.userId) {
+          socket.emit('device-status-error', {
+            message: 'User not authenticated',
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+
+        Logger.debug('Device status update received', {
+          socketId: socket.id,
+          userId: socket.userId,
+          batteryLevel: data?.batteryLevel,
+          isCharging: data?.isCharging,
+          lowPowerMode: data?.lowPowerMode,
+          timestamp: data?.timestamp,
+        });
+
+        // Validate device status data
+        if (!data || typeof data.batteryLevel !== 'number') {
+          socket.emit('device-status-error', {
+            message: 'Invalid device status data',
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+
+        // Create device status payload
+        const deviceStatusPayload = {
+          userId: socket.userId,
+          userEmail: socket.userEmail,
+          deviceStatus: {
+            batteryLevel: Math.max(0, Math.min(1, data.batteryLevel)), // Clamp between 0-1
+            batteryPercentage: Math.round(data.batteryLevel * 100),
+            isCharging: !!data.isCharging,
+            lowPowerMode: !!data.lowPowerMode,
+            isOnline: true,
+            lastSeen: new Date().toISOString(),
+            connectionQuality: data.connectionQuality || 'good',
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        // Check if user has an active session - broadcast to guardians
+        const sessionData = activeSessions.get(socket.userId);
+        if (sessionData) {
+          // Broadcast to guardians in the session
+          io.to(sessionData.roomName).emit('ward-device-status', deviceStatusPayload);
+
+          Logger.debug('Device status broadcasted to session guardians', {
+            userId: socket.userId,
+            sessionId: sessionData.sessionId,
+            roomName: sessionData.roomName,
+            guardianCount: sessionData.guardianIds.length,
+            batteryLevel: deviceStatusPayload.deviceStatus.batteryPercentage + '%',
+          });
+        }
+
+        // Also broadcast to all connected guardians of this Ward (not just in session)
+        // TODO: Implement guardian relationship lookup and broadcast
+        // For now, just acknowledge the status update
+        socket.emit('device-status-acknowledged', {
+          timestamp: new Date().toISOString(),
+          status: 'received',
+          batteryLevel: deviceStatusPayload.deviceStatus.batteryPercentage,
+        });
+
+        // Store latest device status in memory (could be moved to database)
+        // This allows guardians to see last known status even when Ward is offline
+        deviceStatusCache.set(socket.userId, deviceStatusPayload);
+      } catch (error) {
+        Logger.error('Failed to process device status update', {
+          socketId: socket.id,
+          userId: socket.userId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+
+        socket.emit('device-status-error', {
+          message: 'Failed to process device status',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
+    // Handle guardian connection status updates
+    socket.on('guardian-status-update', async data => {
+      try {
+        if (!socket.userId) return;
+
+        Logger.debug('Guardian status update', {
+          socketId: socket.id,
+          userId: socket.userId,
+          status: data?.status,
+        });
+
+        // Find all wards that this guardian is protecting
+        // TODO: Implement guardian-ward relationship lookup
+        // For now, broadcast to user's own room
+        socket.to(`user:${socket.userId}`).emit('guardian-online-status', {
+          guardianId: socket.userId,
+          guardianEmail: socket.userEmail,
+          status: data?.status || 'online',
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        Logger.error('Failed to process guardian status update', {
+          socketId: socket.id,
+          userId: socket.userId,
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     });
 
     // Handle disconnection
-    socket.on('disconnect', async (reason) => {
+    socket.on('disconnect', async reason => {
       Logger.info('WebSocket connection closed', {
         socketId: socket.id,
         userId: socket.userId,
         email: socket.userEmail,
         reason,
-        connectedClients: io.engine.clientsCount - 1
+        connectedClients: io.engine.clientsCount - 1,
       });
+
+      // Broadcast guardian offline status
+      if (socket.userId) {
+        // Notify wards that this guardian is now offline
+        socket.to(`user:${socket.userId}`).emit('guardian-online-status', {
+          guardianId: socket.userId,
+          guardianEmail: socket.userEmail,
+          status: 'offline',
+          timestamp: new Date().toISOString(),
+        });
+
+        // Update device status cache to show user as offline
+        const cachedStatus = deviceStatusCache.get(socket.userId);
+        if (cachedStatus) {
+          cachedStatus.deviceStatus.isOnline = false;
+          cachedStatus.deviceStatus.lastSeen = new Date().toISOString();
+          deviceStatusCache.set(socket.userId, cachedStatus);
+        }
+      }
 
       // Clean up active live sessions if user disconnects
       if (socket.userId && activeSessions.has(socket.userId)) {
@@ -690,7 +912,7 @@ export function initSocket(httpServer: HttpServer): Server {
         if (sessionData) {
           Logger.info('Cleaning up live session due to disconnect', {
             userId: socket.userId,
-            sessionId: sessionData.sessionId
+            sessionId: sessionData.sessionId,
           });
 
           // Remove from activeSessions
@@ -709,7 +931,7 @@ export function initSocket(httpServer: HttpServer): Server {
             endTime,
             duration: Math.round(duration / 1000),
             reason: 'ward_disconnected',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
 
           // Clean up the room
@@ -727,19 +949,19 @@ export function initSocket(httpServer: HttpServer): Server {
     });
 
     // Handle connection errors
-    socket.on('error', (error) => {
+    socket.on('error', error => {
       Logger.error('Socket error occurred', {
         socketId: socket.id,
         userId: socket.userId,
-        error: error.message || 'Unknown socket error'
+        error: error.message || 'Unknown socket error',
       });
     });
   });
 
   // Global error handling
-  io.on('connect_error', (error) => {
+  io.on('connect_error', error => {
     Logger.error('Socket.IO connection error', {
-      error: error.message || 'Unknown connection error'
+      error: error.message || 'Unknown connection error',
     });
   });
 
@@ -756,13 +978,13 @@ export function initSocket(httpServer: HttpServer): Server {
 export function emitToUser(io: Server, userId: string, event: string, data: any): void {
   io.to(`user:${userId}`).emit(event, {
     ...data,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
-  
+
   Logger.debug('Message emitted to user', {
     userId,
     event,
-    hasData: !!data
+    hasData: !!data,
   });
 }
 
@@ -775,13 +997,13 @@ export function emitToUser(io: Server, userId: string, event: string, data: any)
 export function broadcastToAll(io: Server, event: string, data: any): void {
   io.emit(event, {
     ...data,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
-  
+
   Logger.debug('Message broadcasted to all clients', {
     event,
     connectedClients: io.engine.clientsCount,
-    hasData: !!data
+    hasData: !!data,
   });
 }
 
@@ -824,12 +1046,14 @@ export function getActiveSessionCount(): number {
  * @param userId - Ward's user ID
  * @returns Current location data if available
  */
-export function getSessionLocation(userId: string): {
-  latitude: number;
-  longitude: number;
-  timestamp: Date;
-  accuracy?: number;
-} | undefined {
+export function getSessionLocation(userId: string):
+  | {
+      latitude: number;
+      longitude: number;
+      timestamp: Date;
+      accuracy?: number;
+    }
+  | undefined {
   const session = activeSessions.get(userId);
   return session?.lastLocation;
 }
@@ -860,7 +1084,7 @@ export function getActiveSessionsWithLocations(): Array<{
       accuracy?: number;
     };
   }> = [];
-  
+
   for (const sessionData of activeSessions.values()) {
     const sessionInfo: {
       userId: string;
@@ -875,16 +1099,16 @@ export function getActiveSessionsWithLocations(): Array<{
     } = {
       userId: sessionData.userId,
       sessionId: sessionData.sessionId,
-      startTime: sessionData.startTime
+      startTime: sessionData.startTime,
     };
-    
+
     if (sessionData.lastLocation) {
       sessionInfo.location = sessionData.lastLocation;
     }
-    
+
     sessions.push(sessionInfo);
   }
-  
+
   return sessions;
 }
 
