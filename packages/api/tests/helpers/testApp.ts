@@ -99,7 +99,7 @@ class TestApp {
     this.app.use('/api', apiRoutes);
 
     // Root endpoint
-    this.app.get('/', (req, res) => {
+    this.app.get('/', (_req, res) => {
       res.json({
         message: 'GuardianPulse Test API Server',
         version: '1.0.0',

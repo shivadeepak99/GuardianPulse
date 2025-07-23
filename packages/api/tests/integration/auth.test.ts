@@ -52,7 +52,7 @@ describe('Authentication Integration Tests', () => {
       expect(response.body.data.user).not.toHaveProperty('password');
 
       // Verify user was created in database
-      const dbUser = await DatabaseService.prisma.user.findUnique({
+      const dbUser = await DatabaseService.getInstance().user.findUnique({
         where: { email: newUser.email },
       });
       expect(dbUser).toBeTruthy();
@@ -109,7 +109,7 @@ describe('Authentication Integration Tests', () => {
         password: await bcrypt.hash('password123', 10),
       });
 
-      await DatabaseService.prisma.user.create({
+      await DatabaseService.getInstance().user.create({
         data: existingUser,
       });
 
@@ -156,7 +156,7 @@ describe('Authentication Integration Tests', () => {
 
     beforeEach(async () => {
       // Create a test user for login tests
-      testUser = await DatabaseService.prisma.user.create({
+      testUser = await DatabaseService.getInstance().user.create({
         data: {
           ...createMockUser({
             email: 'login@example.com',
@@ -237,7 +237,7 @@ describe('Authentication Integration Tests', () => {
 
     it('should reject login for inactive user', async () => {
       // Arrange
-      await DatabaseService.prisma.user.update({
+      await DatabaseService.getInstance().user.update({
         where: { id: testUser.id },
         data: { isActive: false },
       });

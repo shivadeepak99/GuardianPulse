@@ -132,16 +132,16 @@ export const useAudio = ({
       const recordingOptions = {
         android: {
           extension: ".m4a",
-          outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_MPEG_4,
-          audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_AAC,
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
           sampleRate: 16000,
           numberOfChannels: 1,
           bitRate: 32000,
         },
         ios: {
           extension: ".m4a",
-          outputFormat: Audio.RECORDING_OPTION_IOS_OUTPUT_FORMAT_MPEG4AAC,
-          audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_LOW,
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+          audioQuality: Audio.IOSAudioQuality.LOW,
           sampleRate: 16000,
           numberOfChannels: 1,
           bitRate: 32000,
@@ -182,11 +182,11 @@ export const useAudio = ({
 
       try {
         // Stop current recording to get chunk
-        const uri = await recordingRef.current.stopAndUnloadAsync();
+        const status = await recordingRef.current.stopAndUnloadAsync();
 
-        if (uri) {
+        if (status && status.uri) {
           // Read audio file as base64
-          const response = await fetch(uri);
+          const response = await fetch(status.uri);
           const blob = await response.blob();
           const reader = new FileReader();
 
@@ -198,7 +198,7 @@ export const useAudio = ({
               const audioChunk: AudioChunk = {
                 data: base64Data,
                 timestamp: Date.now(),
-                uri: uri.uri || "", // Get the actual URI from the recording status
+                uri: status.uri || "", // Get the actual URI from the recording status
               };
 
               // Maintain circular buffer of last 30 seconds
@@ -228,16 +228,16 @@ export const useAudio = ({
           const recordingOptions = {
             android: {
               extension: ".m4a",
-              outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_MPEG_4,
-              audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_AAC,
+              outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+              audioEncoder: Audio.AndroidAudioEncoder.AAC,
               sampleRate: 16000,
               numberOfChannels: 1,
               bitRate: 32000,
             },
             ios: {
               extension: ".m4a",
-              outputFormat: Audio.RECORDING_OPTION_IOS_OUTPUT_FORMAT_MPEG4AAC,
-              audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_LOW,
+              outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+              audioQuality: Audio.IOSAudioQuality.LOW,
               sampleRate: 16000,
               numberOfChannels: 1,
               bitRate: 32000,

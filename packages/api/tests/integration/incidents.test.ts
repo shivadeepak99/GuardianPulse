@@ -5,8 +5,7 @@
 import request from 'supertest';
 import { TestApp } from '../helpers/testApp';
 import { DatabaseService } from '../../src/services/database.service';
-import { createMockUser, createMockIncident, createMockSensorData } from '../mocks/data.mock';
-import bcrypt from 'bcryptjs';
+import { createMockIncident, createMockSensorData } from '../mocks/data.mock';
 
 describe('Incident Integration Tests', () => {
   let testApp: TestApp;
@@ -203,21 +202,21 @@ describe('Incident Integration Tests', () => {
       // Create some test incidents
       const incidents = [
         createMockIncident({
-          userId: testUser.id,
-          type: 'fall_detection',
+          wardId: testUser.id,
+          type: 'FALL_DETECTED',
           status: 'active',
           createdAt: new Date(Date.now() - 86400000), // 1 day ago
         }),
         createMockIncident({
-          userId: testUser.id,
-          type: 'manual_sos',
+          wardId: testUser.id,
+          type: 'SOS_MANUAL',
           status: 'resolved',
           createdAt: new Date(Date.now() - 3600000), // 1 hour ago
         }),
       ];
 
       for (const incident of incidents) {
-        await DatabaseService.prisma.incident.create({
+        await DatabaseService.getInstance().incident.create({
           data: incident,
         });
       }
@@ -292,10 +291,10 @@ describe('Incident Integration Tests', () => {
     let testIncident: any;
 
     beforeEach(async () => {
-      testIncident = await DatabaseService.prisma.incident.create({
+      testIncident = await DatabaseService.getInstance().incident.create({
         data: createMockIncident({
-          userId: testUser.id,
-          type: 'fall_detection',
+          wardId: testUser.id,
+          type: 'FALL_DETECTED',
         }),
       });
     });
@@ -339,9 +338,9 @@ describe('Incident Integration Tests', () => {
         .post('/api/auth/register')
         .send(otherUserData);
 
-      const otherIncident = await DatabaseService.prisma.incident.create({
+      const otherIncident = await DatabaseService.getInstance().incident.create({
         data: createMockIncident({
-          userId: otherUserResponse.body.data.user.id,
+          wardId: otherUserResponse.body.data.user.id,
         }),
       });
 
@@ -361,9 +360,9 @@ describe('Incident Integration Tests', () => {
     let testIncident: any;
 
     beforeEach(async () => {
-      testIncident = await DatabaseService.prisma.incident.create({
+      testIncident = await DatabaseService.getInstance().incident.create({
         data: createMockIncident({
-          userId: testUser.id,
+          wardId: testUser.id,
           status: 'active',
         }),
       });
@@ -408,9 +407,9 @@ describe('Incident Integration Tests', () => {
         .post('/api/auth/register')
         .send(otherUserData);
 
-      const otherIncident = await DatabaseService.prisma.incident.create({
+      const otherIncident = await DatabaseService.getInstance().incident.create({
         data: createMockIncident({
-          userId: otherUserResponse.body.data.user.id,
+          wardId: otherUserResponse.body.data.user.id,
         }),
       });
 

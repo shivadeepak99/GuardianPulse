@@ -8,7 +8,6 @@ import type { Incident } from "../services/api";
 import {
   LoadingSpinner,
   SkeletonCard,
-  EmptyIncidents,
   EmptyGuardians,
   ErrorDisplay,
   useToast,
