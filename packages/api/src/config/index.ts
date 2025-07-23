@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import { Logger } from '../utils';
 
 // Load environment variables from .env file
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -105,7 +106,7 @@ export const validateConfig = (): void => {
   if (config.nodeEnv === 'production') {
     const missingTwilioVars = optionalTwilioVars.filter(envVar => !process.env[envVar]);
     if (missingTwilioVars.length > 0) {
-      console.warn(
+      Logger.warn(
         `Warning: Missing Twilio environment variables: ${missingTwilioVars.join(', ')}. SMS alerts will be disabled.`,
       );
     }

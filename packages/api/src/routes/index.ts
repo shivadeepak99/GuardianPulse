@@ -4,6 +4,7 @@ import guardianRoutes from './guardians';
 import evidenceRoutes from './evidence';
 import incidentRoutes from './incidents';
 import configRoutes from './config.routes';
+import subscriptionRoutes from './subscription';
 
 /**
  * Main API Routes
@@ -25,6 +26,9 @@ routes.use('/incidents', incidentRoutes);
 
 // Mount configuration routes (admin only)
 routes.use('/config', configRoutes);
+
+// Mount subscription routes
+routes.use('/subscription', subscriptionRoutes);
 
 /**
  * @swagger

@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from '../config';
+import { Logger } from '../utils';
 
 export class S3Service {
   private s3Client: S3Client;
@@ -28,12 +29,12 @@ export class S3Service {
   async getUploadPresignedUrl(
     fileName: string,
     fileType: string,
-    expiresIn: number = 900 // 15 minutes
+    expiresIn: number = 900, // 15 minutes
   ): Promise<string> {
     try {
       // Sanitize fileName to prevent path traversal
       const sanitizedFileName = this.sanitizeFileName(fileName);
-      
+
       // Generate a unique key with timestamp and UUID
       const fileKey = this.generateUniqueFileKey(sanitizedFileName);
 
@@ -56,7 +57,7 @@ export class S3Service {
 
       return presignedUrl;
     } catch (error) {
-      console.error('Error generating pre-signed URL:', error);
+      Logger.error('Error generating pre-signed URL:', error);
       throw new Error('Failed to generate upload URL');
     }
   }
@@ -69,7 +70,7 @@ export class S3Service {
    */
   async getDownloadPresignedUrl(
     fileKey: string,
-    expiresIn: number = 3600 // 1 hour
+    expiresIn: number = 3600, // 1 hour
   ): Promise<string> {
     try {
       const command = new GetObjectCommand({
@@ -83,7 +84,7 @@ export class S3Service {
 
       return presignedUrl;
     } catch (error) {
-      console.error('Error generating download pre-signed URL:', error);
+      Logger.error('Error generating download pre-signed URL:', error);
       throw new Error('Failed to generate download URL');
     }
   }
@@ -110,12 +111,12 @@ export class S3Service {
     const timestamp = Date.now();
     const randomId = Math.random().toString(36).substring(2, 15);
     const extension = fileName.split('.').pop() || '';
-    
+
     // Structure: evidence/year/month/timestamp_randomId.extension
     const date = new Date();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
-    
+
     return `evidence/${year}/${month}/${timestamp}_${randomId}${extension ? '.' + extension : ''}`;
   }
 
@@ -132,18 +133,18 @@ export class S3Service {
       'audio/wav',
       'audio/webm',
       'audio/ogg',
-      
+
       // Video files
       'video/mp4',
       'video/webm',
       'video/quicktime',
       'video/x-msvideo', // AVI
-      
+
       // Image files (for screenshots)
       'image/jpeg',
       'image/png',
       'image/webp',
-      
+
       // Document files
       'application/pdf',
       'text/plain',

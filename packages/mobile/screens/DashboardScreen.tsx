@@ -20,6 +20,15 @@ import { useAudio } from "../hooks/useAudio";
 import { useOnboarding } from "../hooks/useOnboarding";
 import { useDeviceStatus } from "../hooks/useDeviceStatus";
 import OnboardingModal from "../components/OnboardingModal";
+import {
+  LoadingSpinner,
+  SkeletonCard,
+  EmptyIncidents,
+  EmptyGuardians,
+  ErrorDisplay,
+  ToastManager,
+  useToast,
+} from "../components/ui";
 
 const { width } = Dimensions.get("window");
 
@@ -27,6 +36,14 @@ const DashboardScreen: React.FC = () => {
   const { user, logout } = useAuth();
   const navigation = useNavigation();
   const { isConnected, connectionStatus, emit } = useSocket();
+  const { toasts, removeToast, showSuccess, showError, showInfo, showWarning } =
+    useToast();
+
+  // Add loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [liveModeLoading, setLiveModeLoading] = useState(false);
+
   const {
     currentLocation,
     isTracking,
@@ -123,6 +140,33 @@ const DashboardScreen: React.FC = () => {
     setIsLive(isTracking);
   }, [isTracking]);
 
+  // Simulate loading dashboard data
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Simulate API calls
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+
+        // In a real app, you would fetch:
+        // - Recent incidents
+        // - Guardian status
+        // - User settings
+        // - Location history
+
+        setLoading(false);
+      } catch (err) {
+        setError("Failed to load dashboard data");
+        setLoading(false);
+        showError("Failed to load dashboard data");
+      }
+    };
+
+    loadDashboardData();
+  }, [showError]);
+
   // Configure header with profile button
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -173,93 +217,111 @@ const DashboardScreen: React.FC = () => {
 
   // Handle Live Mode toggle
   const handleLiveModeToggle = async () => {
-    if (!isLive) {
-      // Starting Live Mode
-      if (!hasPermission) {
-        const granted = await requestPermissions();
-        if (!granted) {
+    setLiveModeLoading(true);
+    try {
+      if (!isLive) {
+        // Starting Live Mode
+        if (!hasPermission) {
+          const granted = await requestPermissions();
+          if (!granted) {
+            Alert.alert(
+              "Permission Required",
+              "Location permission is required for Live Mode. Please enable it to protect your safety.",
+              [{ text: "OK" }],
+            );
+            setLiveModeLoading(false);
+            return;
+          }
+        }
+
+        if (!isConnected) {
           Alert.alert(
-            "Permission Required",
-            "Location permission is required for Live Mode. Please enable it to protect your safety.",
+            "Connection Required",
+            "Internet connection is required for Live Mode. Please check your connection and try again.",
             [{ text: "OK" }],
           );
+          setLiveModeLoading(false);
           return;
         }
-      }
 
-      if (!isConnected) {
-        Alert.alert(
-          "Connection Required",
-          "Internet connection is required for Live Mode. Please check your connection and try again.",
-          [{ text: "OK" }],
-        );
-        return;
-      }
+        const success = await startLocationTracking();
+        if (success) {
+          // Emit start-live-session event
+          emit("start-live-session", {
+            userId: user?.id,
+            timestamp: Date.now(),
+            location: currentLocation,
+          });
 
-      const success = await startLocationTracking();
-      if (success) {
-        // Emit start-live-session event
-        emit("start-live-session", {
-          userId: user?.id,
-          timestamp: Date.now(),
-          location: currentLocation,
-        });
+          // Request audio permissions and start streaming
+          if (permissionStatus !== "granted") {
+            await requestAudioPermissions();
+          }
 
-        // Request audio permissions and start streaming
-        if (permissionStatus !== "granted") {
-          await requestAudioPermissions();
+          // Auto-start audio streaming in Live Mode
+          setTimeout(() => {
+            startRecording();
+          }, 1000); // Small delay to ensure everything is initialized
+
+          Alert.alert(
+            "Live Mode Activated",
+            "You are now protected! Your guardians will receive real-time updates including location and audio.",
+            [{ text: "OK" }],
+          );
+          showSuccess(
+            "Live Mode Activated",
+            "Your guardians will receive real-time updates",
+          );
+        } else {
+          Alert.alert(
+            "Failed to Start Live Mode",
+            "Unable to start location tracking. Please check your device settings and try again.",
+            [{ text: "OK" }],
+          );
+          showError(
+            "Failed to Start Live Mode",
+            "Unable to start location tracking",
+          );
         }
-
-        // Auto-start audio streaming in Live Mode
-        setTimeout(() => {
-          startRecording();
-        }, 1000); // Small delay to ensure everything is initialized
-
-        Alert.alert(
-          "Live Mode Activated",
-          "You are now protected! Your guardians will receive real-time updates including location and audio.",
-          [{ text: "OK" }],
-        );
       } else {
+        // Stopping Live Mode
         Alert.alert(
-          "Failed to Start Live Mode",
-          "Unable to start location tracking. Please check your device settings and try again.",
-          [{ text: "OK" }],
+          "Stop Live Mode?",
+          "Are you sure you want to stop Live Mode? Your guardians will no longer receive real-time updates.",
+          [
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+            {
+              text: "Stop",
+              style: "destructive",
+              onPress: () => {
+                stopLocationTracking();
+                stopRecording(); // Stop audio streaming
+
+                // Emit stop-live-session event
+                emit("stop-live-session", {
+                  userId: user?.id,
+                  timestamp: Date.now(),
+                  finalLocation: currentLocation,
+                });
+
+                Alert.alert(
+                  "Live Mode Stopped",
+                  "Live Mode has been deactivated. Stay safe!",
+                  [{ text: "OK" }],
+                );
+                showInfo("Live Mode Stopped", "Stay safe!");
+              },
+            },
+          ],
         );
       }
-    } else {
-      // Stopping Live Mode
-      Alert.alert(
-        "Stop Live Mode?",
-        "Are you sure you want to stop Live Mode? Your guardians will no longer receive real-time updates.",
-        [
-          {
-            text: "Cancel",
-            style: "cancel",
-          },
-          {
-            text: "Stop",
-            style: "destructive",
-            onPress: () => {
-              stopLocationTracking();
-              stopRecording(); // Stop audio streaming
-
-              // Emit stop-live-session event
-              emit("stop-live-session", {
-                userId: user?.id,
-                timestamp: Date.now(),
-                finalLocation: currentLocation,
-              });
-
-              Alert.alert(
-                "Live Mode Stopped",
-                "Live Mode has been deactivated. Stay safe!",
-                [{ text: "OK" }],
-              );
-            },
-          },
-        ],
-      );
+    } catch (err) {
+      showError("Action Failed", "Something went wrong. Please try again.");
+    } finally {
+      setLiveModeLoading(false);
     }
   };
 
@@ -355,26 +417,41 @@ const DashboardScreen: React.FC = () => {
                 isLive
                   ? styles.liveModeButtonActive
                   : styles.liveModeButtonInactive,
+                liveModeLoading && styles.liveModeButtonLoading,
               ]}
               onPress={handleLiveModeToggle}
               activeOpacity={0.8}
+              disabled={liveModeLoading}
             >
-              <Text
-                style={[
-                  styles.liveModeButtonText,
-                  isLive ? styles.buttonTextActive : styles.buttonTextInactive,
-                ]}
-              >
-                {isLive ? "STOP" : "GO LIVE"}
-              </Text>
-              <Text
-                style={[
-                  styles.liveModeSubtext,
-                  isLive ? styles.subtextActive : styles.subtextInactive,
-                ]}
-              >
-                {isLive ? "Tap to stop protection" : "Tap to start protection"}
-              </Text>
+              {liveModeLoading ? (
+                <LoadingSpinner
+                  size="large"
+                  color={isLive ? "#FFFFFF" : "#DC2626"}
+                />
+              ) : (
+                <>
+                  <Text
+                    style={[
+                      styles.liveModeButtonText,
+                      isLive
+                        ? styles.buttonTextActive
+                        : styles.buttonTextInactive,
+                    ]}
+                  >
+                    {isLive ? "STOP" : "GO LIVE"}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.liveModeSubtext,
+                      isLive ? styles.subtextActive : styles.subtextInactive,
+                    ]}
+                  >
+                    {isLive
+                      ? "Tap to stop protection"
+                      : "Tap to start protection"}
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -548,7 +625,11 @@ const DashboardScreen: React.FC = () => {
                 <Text style={styles.cardTitle}>Location Details</Text>
                 <Switch
                   value={isLive}
-                  onValueChange={() => handleLiveModeToggle()}
+                  onValueChange={(value) => {
+                    if (value !== isLive) {
+                      handleLiveModeToggle();
+                    }
+                  }}
                   trackColor={{ false: "#D1D5DB", true: "#10B981" }}
                   thumbColor={isLive ? "#FFFFFF" : "#9CA3AF"}
                 />
@@ -693,6 +774,81 @@ const DashboardScreen: React.FC = () => {
           </>
         )}
 
+        {/* Recent Incidents Section */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Recent Incidents</Text>
+          {loading ? (
+            <View>
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </View>
+          ) : error ? (
+            <ErrorDisplay
+              error={error}
+              onRetry={() => {
+                const loadDashboardData = async () => {
+                  try {
+                    setLoading(true);
+                    setError(null);
+                    await new Promise((resolve) => setTimeout(resolve, 1500));
+                    setLoading(false);
+                  } catch (err) {
+                    setError("Failed to load dashboard data");
+                    setLoading(false);
+                  }
+                };
+                loadDashboardData();
+              }}
+              variant="card"
+            />
+          ) : (
+            // Show empty state for now (in real app, show actual incidents)
+            <EmptyIncidents
+              onCreateIncident={() => {
+                // navigation.navigate('CreateIncident');
+              }}
+            />
+          )}
+        </View>
+
+        {/* My Guardians Section */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>My Guardians</Text>
+          {loading ? (
+            <View>
+              <SkeletonCard />
+              <SkeletonCard />
+            </View>
+          ) : error ? (
+            <ErrorDisplay
+              error={error}
+              onRetry={() => {
+                const loadDashboardData = async () => {
+                  try {
+                    setLoading(true);
+                    setError(null);
+                    await new Promise((resolve) => setTimeout(resolve, 1500));
+                    setLoading(false);
+                  } catch (err) {
+                    setError("Failed to load dashboard data");
+                    setLoading(false);
+                  }
+                };
+                loadDashboardData();
+              }}
+              variant="card"
+            />
+          ) : (
+            // Show empty state for now (in real app, show actual guardians)
+            <EmptyGuardians
+              onInviteGuardian={() => {
+                // navigation.navigate('AddGuardian');
+              }}
+            />
+          )}
+        </View>
+
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Sign Out</Text>
@@ -705,6 +861,9 @@ const DashboardScreen: React.FC = () => {
         onComplete={markOnboardingCompleted}
         userEmail={user?.email}
       />
+
+      {/* Toast Manager */}
+      <ToastManager toasts={toasts} onRemoveToast={removeToast} />
     </SafeAreaView>
   );
 };
@@ -785,6 +944,9 @@ const styles = StyleSheet.create({
   },
   liveModeButtonInactive: {
     backgroundColor: "#059669",
+  },
+  liveModeButtonLoading: {
+    opacity: 0.7,
   },
   liveModeButtonText: {
     fontSize: 24,
@@ -1220,6 +1382,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "600",
+  },
+
+  // Section Styles
+  sectionContainer: {
+    marginBottom: 24,
   },
 });
 

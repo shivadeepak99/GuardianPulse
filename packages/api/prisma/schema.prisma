@@ -31,6 +31,11 @@ enum EvidenceType {
   SENSOR_LOG
 }
 
+enum SubscriptionStatus {
+  FREE
+  PREMIUM
+}
+
 // User Model
 // Stores user account information for the GuardianPulse platform
 model User {
@@ -47,6 +52,12 @@ model User {
   isActive       Boolean @default(true)
   emailVerified  Boolean @default(false)
   lastLoginAt    DateTime?
+  
+  // Subscription and billing
+  subscriptionStatus SubscriptionStatus @default(FREE)
+  stripeCustomerId   String?             @unique
+  subscriptionId     String?             @unique
+  subscriptionEnd    DateTime?
   
   // Privacy and security settings
   privacyLevel   String  @default("standard") // standard, high, maximum

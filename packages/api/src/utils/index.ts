@@ -1,4 +1,4 @@
-import { Logger } from './logger';
+import { Logger } from './Logger';
 
 /**
  * Export the production-grade Winston logger

@@ -1,13 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { incidentAPI } from '../services/api';
-import type { Incident } from '../services/api';
+import React, { useState, useEffect } from "react";
+import { incidentAPI } from "../services/api";
+import type { Incident } from "../services/api";
+import {
+  LoadingSpinner,
+  SkeletonIncidentCard,
+  EmptyIncidents,
+  ErrorDisplay,
+  useToast,
+} from "./ui";
 
 interface IncidentListProps {
   wardId: string;
   onIncidentClick?: (incident: Incident) => void;
 }
 
-const IncidentList: React.FC<IncidentListProps> = ({ wardId, onIncidentClick }) => {
+const IncidentList: React.FC<IncidentListProps> = ({
+  wardId,
+  onIncidentClick,
+}) => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,26 +25,31 @@ const IncidentList: React.FC<IncidentListProps> = ({ wardId, onIncidentClick }) 
     status?: string;
     type?: string;
   }>({});
+  const { showError, showSuccess } = useToast();
 
   // Load incidents
   const loadIncidents = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await incidentAPI.getWardIncidents(wardId, {
         ...filter,
-        limit: 50
+        limit: 50,
       });
-      
+
       if (response.success) {
         setIncidents(response.data);
+        showSuccess("Incidents loaded", "Incident list updated successfully");
       } else {
-        setError('Failed to load incidents');
+        setError("Failed to load incidents");
+        showError("Loading failed", "Could not load incidents");
       }
     } catch (err) {
-      console.error('Error loading incidents:', err);
-      setError('Failed to load incidents. Please try again.');
+      console.error("Error loading incidents:", err);
+      const errorMessage = "Failed to load incidents. Please try again.";
+      setError(errorMessage);
+      showError("Loading failed", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -47,35 +62,36 @@ const IncidentList: React.FC<IncidentListProps> = ({ wardId, onIncidentClick }) 
   }, [wardId, filter]);
 
   // Format incident type for display
-  const formatIncidentType = (type: Incident['type']): string => {
+  const formatIncidentType = (type: Incident["type"]): string => {
     switch (type) {
-      case 'SOS_TRIGGERED':
-        return 'SOS Alert';
-      case 'SOS_MANUAL':
-        return 'Manual SOS';
-      case 'FALL_DETECTED':
-        return 'Fall Detected';
-      case 'THROWN_AWAY':
-        return 'Device Thrown';
-      case 'FAKE_SHUTDOWN':
-        return 'Fake Shutdown';
+      case "SOS_TRIGGERED":
+        return "SOS Alert";
+      case "SOS_MANUAL":
+        return "Manual SOS";
+      case "FALL_DETECTED":
+        return "Fall Detected";
+      case "THROWN_AWAY":
+        return "Device Thrown";
+      case "FAKE_SHUTDOWN":
+        return "Fake Shutdown";
       default:
-        return String(type).replace('_', ' ');
+        return String(type).replace("_", " ");
     }
   };
 
   // Get incident priority/urgency class
   const getIncidentClass = (incident: Incident): string => {
-    const baseClass = 'p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md';
-    
-    if (incident.status === 'ACTIVE') {
+    const baseClass =
+      "p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md";
+
+    if (incident.status === "ACTIVE") {
       switch (incident.type) {
-        case 'SOS_TRIGGERED':
-        case 'SOS_MANUAL':
-        case 'THROWN_AWAY':
-        case 'FAKE_SHUTDOWN':
+        case "SOS_TRIGGERED":
+        case "SOS_MANUAL":
+        case "THROWN_AWAY":
+        case "FAKE_SHUTDOWN":
           return `${baseClass} border-red-500 bg-red-50 hover:bg-red-100`;
-        case 'FALL_DETECTED':
+        case "FALL_DETECTED":
           return `${baseClass} border-orange-500 bg-orange-50 hover:bg-orange-100`;
         default:
           return `${baseClass} border-yellow-500 bg-yellow-50 hover:bg-yellow-100`;
@@ -88,14 +104,14 @@ const IncidentList: React.FC<IncidentListProps> = ({ wardId, onIncidentClick }) 
   // Get status badge class
   const getStatusBadgeClass = (status: string): string => {
     switch (status) {
-      case 'ACTIVE':
-        return 'px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800';
-      case 'RESOLVED':
-        return 'px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800';
-      case 'DISMISSED':
-        return 'px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800';
+      case "ACTIVE":
+        return "px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800";
+      case "RESOLVED":
+        return "px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800";
+      case "DISMISSED":
+        return "px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800";
       default:
-        return 'px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800';
+        return "px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800";
     }
   };
 
@@ -103,46 +119,57 @@ const IncidentList: React.FC<IncidentListProps> = ({ wardId, onIncidentClick }) 
   const formatTimestamp = (timestamp: string): string => {
     const date = new Date(timestamp);
     const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
+    const diffInHours = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60 * 60),
+    );
+
     if (diffInHours < 1) {
-      const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-      return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
+      const diffInMinutes = Math.floor(
+        (now.getTime() - date.getTime()) / (1000 * 60),
+      );
+      return `${diffInMinutes} minute${diffInMinutes !== 1 ? "s" : ""} ago`;
     } else if (diffInHours < 24) {
-      return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
+      return `${diffInHours} hour${diffInHours !== 1 ? "s" : ""} ago`;
     } else {
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return (
+        date.toLocaleDateString() +
+        " " +
+        date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      );
     }
   };
 
   // Get ward display name
-  const getWardDisplayName = (ward: Incident['ward']): string => {
+  const getWardDisplayName = (ward: Incident["ward"]): string => {
     if (ward.firstName || ward.lastName) {
-      return `${ward.firstName || ''} ${ward.lastName || ''}`.trim();
+      return `${ward.firstName || ""} ${ward.lastName || ""}`.trim();
     }
     return ward.email;
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-gray-600">Loading incidents...</span>
+      <div className="space-y-4">
+        {/* Loading skeleton for filters */}
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
+          <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
+          <div className="h-10 w-20 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+
+        {/* Loading skeleton for incidents */}
+        <div className="space-y-3">
+          {Array.from({ length: 3 }, (_, i) => (
+            <SkeletonIncidentCard key={i} />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-800">{error}</p>
-        <button
-          onClick={loadIncidents}
-          className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-        >
-          Try Again
-        </button>
-      </div>
+      <ErrorDisplay error={error} onRetry={loadIncidents} variant="card" />
     );
   }
 
@@ -151,8 +178,10 @@ const IncidentList: React.FC<IncidentListProps> = ({ wardId, onIncidentClick }) 
       {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-6">
         <select
-          value={filter.status || ''}
-          onChange={(e) => setFilter({ ...filter, status: e.target.value || undefined })}
+          value={filter.status || ""}
+          onChange={(e) =>
+            setFilter({ ...filter, status: e.target.value || undefined })
+          }
           className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Statuses</option>
@@ -160,10 +189,12 @@ const IncidentList: React.FC<IncidentListProps> = ({ wardId, onIncidentClick }) 
           <option value="RESOLVED">Resolved</option>
           <option value="DISMISSED">Dismissed</option>
         </select>
-        
+
         <select
-          value={filter.type || ''}
-          onChange={(e) => setFilter({ ...filter, type: e.target.value || undefined })}
+          value={filter.type || ""}
+          onChange={(e) =>
+            setFilter({ ...filter, type: e.target.value || undefined })
+          }
           className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Types</option>
@@ -173,21 +204,27 @@ const IncidentList: React.FC<IncidentListProps> = ({ wardId, onIncidentClick }) 
           <option value="THROWN_AWAY">Device Thrown</option>
           <option value="FAKE_SHUTDOWN">Fake Shutdown</option>
         </select>
-        
+
         <button
           onClick={loadIncidents}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={loading}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
         >
+          {loading && (
+            <LoadingSpinner size="sm" color="white" className="mr-2" />
+          )}
           Refresh
         </button>
       </div>
 
       {/* Incidents List */}
       {incidents.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <p className="text-lg">No incidents found</p>
-          <p className="text-sm">This ward has no recorded incidents matching your filters.</p>
-        </div>
+        <EmptyIncidents
+          onCreateIncident={() => {
+            // Could trigger a test incident or show incident creation flow
+            console.log("Create test incident");
+          }}
+        />
       ) : (
         <div className="space-y-3">
           {incidents.map((incident) => (
@@ -206,39 +243,46 @@ const IncidentList: React.FC<IncidentListProps> = ({ wardId, onIncidentClick }) 
                       {incident.status}
                     </span>
                   </div>
-                  
+
                   <p className="text-gray-700 mb-1">
-                    Ward: <span className="font-medium">{getWardDisplayName(incident.ward)}</span>
+                    Ward:{" "}
+                    <span className="font-medium">
+                      {getWardDisplayName(incident.ward)}
+                    </span>
                   </p>
-                  
+
                   {incident.description && (
                     <p className="text-gray-600 text-sm mb-2">
                       {incident.description}
                     </p>
                   )}
-                  
+
                   {incident.latitude && incident.longitude && (
                     <p className="text-gray-500 text-xs mb-2">
-                      📍 Location: {incident.latitude.toFixed(4)}, {incident.longitude.toFixed(4)}
+                      📍 Location: {incident.latitude.toFixed(4)},{" "}
+                      {incident.longitude.toFixed(4)}
                     </p>
                   )}
-                  
+
                   <p className="text-gray-500 text-sm">
                     {formatTimestamp(incident.createdAt)}
                   </p>
                 </div>
-                
+
                 <div className="ml-4">
-                  {incident.status === 'ACTIVE' && (
+                  {incident.status === "ACTIVE" && (
                     <div className="flex items-center">
                       <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                      <span className="ml-2 text-red-600 font-medium text-sm">Active</span>
+                      <span className="ml-2 text-red-600 font-medium text-sm">
+                        Active
+                      </span>
                     </div>
                   )}
-                  
+
                   {incident.evidence && incident.evidence.length > 0 && (
                     <div className="mt-2 text-xs text-gray-500">
-                      📎 {incident.evidence.length} evidence file{incident.evidence.length !== 1 ? 's' : ''}
+                      📎 {incident.evidence.length} evidence file
+                      {incident.evidence.length !== 1 ? "s" : ""}
                     </div>
                   )}
                 </div>

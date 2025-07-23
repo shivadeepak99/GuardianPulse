@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { S3Service } from '../services/s3.service';
+import { Logger } from '../utils';
 
 // Validation schema for upload URL request
 const uploadUrlSchema = z.object({
@@ -24,7 +25,7 @@ export class EvidenceController {
     try {
       // Validate request body
       const validationResult = uploadUrlSchema.safeParse(req.body);
-      
+
       if (!validationResult.success) {
         res.status(400).json({
           error: 'Validation failed',
@@ -41,10 +42,20 @@ export class EvidenceController {
           error: 'Invalid file type',
           message: 'Only audio, video, image, and document files are allowed',
           allowedTypes: [
-            'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/webm', 'audio/ogg',
-            'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo',
-            'image/jpeg', 'image/png', 'image/webp',
-            'application/pdf', 'text/plain'
+            'audio/mpeg',
+            'audio/mp4',
+            'audio/wav',
+            'audio/webm',
+            'audio/ogg',
+            'video/mp4',
+            'video/webm',
+            'video/quicktime',
+            'video/x-msvideo',
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'application/pdf',
+            'text/plain',
           ],
         });
         return;
@@ -83,7 +94,7 @@ export class EvidenceController {
         },
       });
     } catch (error) {
-      console.error('Error generating upload URL:', error);
+      Logger.error('Error generating upload URL:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to generate upload URL',
@@ -130,7 +141,7 @@ export class EvidenceController {
         },
       });
     } catch (error) {
-      console.error('Error generating download URL:', error);
+      Logger.error('Error generating download URL:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to generate download URL',
@@ -146,7 +157,7 @@ export class EvidenceController {
     try {
       // TODO: Implement evidence listing from database
       // This would typically query a database table that tracks uploaded evidence
-      
+
       res.status(200).json({
         success: true,
         data: {
@@ -155,7 +166,7 @@ export class EvidenceController {
         },
       });
     } catch (error) {
-      console.error('Error listing evidence:', error);
+      Logger.error('Error listing evidence:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to list evidence',
