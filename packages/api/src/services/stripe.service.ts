@@ -323,4 +323,4 @@ export class StripeService {
 }
 
 // Initialize Stripe on module load
-StripeService.initialize();
+// StripeService.initialize(); // Temporarily disabled to test if this causes hanging

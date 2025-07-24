@@ -56,8 +56,8 @@ services:
       - ./packages/api/.env
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://guardianpulse:guardian_secure_2025@postgres:5432/guardianpulse_db
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://guardianpulse:guardian_secure_2025@guardian-pulse-postgres:5432/guardianpulse_db
+      - REDIS_URL=redis://guardian-pulse-redis:6379
     restart: unless-stopped
     depends_on:
       postgres:

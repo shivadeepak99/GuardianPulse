@@ -1,13 +1,38 @@
+console.log('🎯 Starting index.ts module...');
+
 import express, { Express } from 'express';
+console.log('✅ Express imported');
+
 import { createServer } from 'http';
 import type { Server as HttpServer } from 'http';
 import path from 'path';
 import cors from 'cors';
 import swaggerUi from 'swagger-ui-express';
-import { config } from './config';
+console.log('✅ Basic imports completed');
+
+import { config, validateConfig } from './config';
+console.log('✅ Config imported');
+
 import swaggerSpec from './config/swagger';
+console.log('✅ Swagger imported');
+
 import { Logger } from './utils';
-import { DatabaseService, redisService, configService } from './services';
+console.log('✅ Logger imported');
+
+console.log('🔍 Importing DatabaseService...');
+import { DatabaseService } from './services/database.service';
+console.log('✅ DatabaseService imported');
+
+console.log('🔍 Importing redisService...');
+import { redisService } from './services/redis.service';
+console.log('✅ redisService imported');
+
+console.log('🔍 Importing configService...');
+import { configService } from './services/config.service';
+console.log('✅ configService imported');
+
+console.log('✅ All services imported');
+
 import {
   requestLogger,
   errorHandler,
@@ -16,9 +41,16 @@ import {
   generalRateLimit,
   securityMonitoring,
 } from './middlewares';
+console.log('✅ Middlewares imported');
+
 import healthRoutes from './api/health.routes';
 import apiRoutes from './routes';
+console.log('✅ Routes imported');
+
 import { initSocket } from './socket';
+console.log('✅ Socket imported');
+
+console.log('🎯 All imports completed, defining server class...');
 
 /**
  * GuardianPulse API Server
@@ -40,23 +72,34 @@ class GuardianPulseServer {
    */
   public async initialize(): Promise<void> {
     try {
+      console.log('🚀 Starting server initialization...');
+
       // Initialize database connection
+      console.log('📊 Initializing database...');
       await this.initializeDatabase();
 
       // Initialize Redis connection
+      console.log('🔴 Initializing Redis...');
       await this.initializeRedis();
 
       // Initialize configuration service
+      console.log('⚙️ Initializing configuration...');
       await this.initializeConfig();
 
       // Initialize application components
+      console.log('🔧 Initializing middlewares...');
       this.initializeMiddlewares();
+      console.log('🛣️ Initializing routes...');
       this.initializeRoutes();
+      console.log('🌐 Initializing WebSockets...');
       this.initializeWebSockets();
+      console.log('🚨 Initializing error handling...');
       this.initializeErrorHandling();
 
+      console.log('✅ Server initialization completed successfully');
       Logger.info('Server initialization completed successfully');
     } catch (error) {
+      console.error('❌ Server initialization failed:', error);
       Logger.error('Server initialization failed', error);
       throw error;
     }
@@ -67,9 +110,12 @@ class GuardianPulseServer {
    */
   private async initializeDatabase(): Promise<void> {
     try {
+      console.log('🔧 Starting database connection...');
       await DatabaseService.connect();
+      console.log('✅ Database connected successfully');
       Logger.info('Database initialized successfully');
     } catch (error) {
+      console.error('❌ Database initialization failed:', error);
       Logger.error('Database initialization failed', error);
       throw error;
     }
@@ -93,9 +139,18 @@ class GuardianPulseServer {
    */
   private async initializeConfig(): Promise<void> {
     try {
+      // Validate environment configuration first
+      console.log('🔧 Starting environment validation...');
+      validateConfig();
+      console.log('✅ Environment configuration validated successfully');
+      Logger.info('Environment configuration validated successfully');
+
+      console.log('🔧 Starting config service initialization...');
       await configService.initialize();
+      console.log('✅ Config service initialized successfully');
       Logger.info('Configuration service initialized successfully');
     } catch (error) {
+      console.error('❌ Configuration initialization failed:', error);
       Logger.error('Configuration service initialization failed', error);
       throw error;
     }
@@ -111,7 +166,11 @@ class GuardianPulseServer {
     // CORS configuration for frontend access
     this.app.use(
       cors({
-        origin: process.env['FRONTEND_URL'] || 'http://localhost:5173',
+        origin: [
+          process.env['FRONTEND_URL'] || 'http://localhost:5173',
+          'http://localhost:5174', // Alternative port when 5173 is in use
+          'http://localhost:3000', // For mobile/other dev servers
+        ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

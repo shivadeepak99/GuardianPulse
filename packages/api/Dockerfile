@@ -47,8 +47,14 @@ RUN pnpm install --prod --ignore-scripts
 # Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist
 
+# Copy .env file to the root for runtime
+COPY --from=builder /app/.env ./.env
+
 # Copy generated Prisma client from builder stage to the correct location for runtime
-COPY --from=builder /app/src/generated ./dist/generated
+COPY --from=builder /app/src/generated ./src/generated
+
+# Copy Prisma schema for runtime
+COPY --from=builder /app/prisma ./prisma
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs

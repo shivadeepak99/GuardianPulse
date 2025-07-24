@@ -1,5 +1,10 @@
+console.log('🔍 About to import PrismaClient...');
 import { PrismaClient } from '../generated/prisma';
+console.log('✅ PrismaClient imported');
+
+console.log('🔍 About to import Logger...');
 import { Logger } from '../utils';
+console.log('✅ Logger imported in database service');
 
 /**
  * Database Service
@@ -123,6 +128,6 @@ export class DatabaseService {
   }
 }
 
-// Export Prisma client for direct use when needed
-export const prisma = DatabaseService.getInstance();
+// Export Prisma client for direct use when needed (lazy initialization)
+export const getPrisma = () => DatabaseService.getInstance();
 export default DatabaseService;

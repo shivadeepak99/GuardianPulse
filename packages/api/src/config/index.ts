@@ -1,9 +1,39 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { Logger } from '../utils';
 
 // Load environment variables from .env file
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Try multiple possible paths for .env file
+const envPaths = [
+  path.resolve(__dirname, '../../.env'), // Original path (dev environment)
+  path.resolve(process.cwd(), '.env'), // From current working directory
+  '/app/.env', // Absolute path for Docker container
+];
+
+let envLoaded = false;
+for (const envPath of envPaths) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+    console.log(`✅ Environment variables loaded from: ${envPath}`);
+    envLoaded = true;
+    break;
+  } else {
+    console.log(`❌ .env file not found at: ${envPath}`);
+  }
+}
+
+if (!envLoaded) {
+  console.warn('⚠️  No .env file found, using system environment variables');
+}
+
+// Debug: Log key environment variables
+console.log('🔍 Environment Variables Check:');
+console.log(`  DATABASE_URL: ${process.env['DATABASE_URL'] ? '✅ Set' : '❌ Missing'}`);
+console.log(`  JWT_SECRET: ${process.env['JWT_SECRET'] ? '✅ Set' : '❌ Missing'}`);
+console.log(`  AWS_ACCESS_KEY_ID: ${process.env['AWS_ACCESS_KEY_ID'] ? '✅ Set' : '❌ Missing'}`);
+console.log(`  NODE_ENV: ${process.env['NODE_ENV'] || 'development'}`);
+console.log(`  PORT: ${process.env['PORT'] || 'default'}`);
 
 interface Config {
   port: number;
