@@ -1,0 +1,174 @@
+{
+  "name": "Emergency Alert Chain",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "emergency-alert",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-emergency",
+      "name": "Emergency Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "accountSid": "={{ $credentials.twilioAccountSid }}",
+        "authToken": "={{ $credentials.twilioAuthToken }}",
+        "from": "={{ $credentials.twilioPhoneNumber }}",
+        "to": "={{ $json.guardianPhone }}",
+        "body": "🚨 EMERGENCY ALERT: {{ $json.wardName }} needs immediate help! Location: {{ $json.location }}. Open dashboard: {{ $json.dashboardUrl }}"
+      },
+      "id": "twilio-sms",
+      "name": "Send Emergency SMS",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@guardianpulse.com",
+        "toEmail": "={{ $json.guardianEmail }}",
+        "subject": "🚨 Emergency Alert - {{ $json.wardName }}",
+        "html": "<h2>Emergency Alert</h2><p><strong>{{ $json.wardName }}</strong> has triggered an emergency alert.</p><p><strong>Time:</strong> {{ $json.timestamp }}</p><p><strong>Location:</strong> {{ $json.location }}</p><p><strong>Alert Type:</strong> {{ $json.alertType }}</p><p><a href='{{ $json.dashboardUrl }}' style='background: #ff4444; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>Open Dashboard</a></p>"
+      },
+      "id": "sendgrid-email",
+      "name": "Send Emergency Email",
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "incidents",
+        "columns": "ward_id, alert_type, location_data, status, created_at",
+        "additionalFields": {
+          "ward_id": "={{ $json.wardId }}",
+          "alert_type": "={{ $json.alertType }}",
+          "location_data": "={{ JSON.stringify($json.location) }}",
+          "status": "ACTIVE",
+          "created_at": "={{ $json.timestamp }}"
+        }
+      },
+      "id": "postgres-log",
+      "name": "Log to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://guardian-pulse-api:8080/api/v1/incidents/{{ $json.incidentId }}/notify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.apiToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "notified"
+            },
+            {
+              "name": "channels",
+              "value": "sms,email"
+            }
+          ]
+        }
+      },
+      "id": "update-api",
+      "name": "Update API Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"message\": \"Emergency alert processed\", \"incidentId\": $json.incidentId } }}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Emergency Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send Emergency SMS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Emergency Email", 
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to Database",
+            "type": "main", 
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Emergency SMS": {
+      "main": [
+        [
+          {
+            "node": "Update API Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Emergency Email": {
+      "main": [
+        [
+          {
+            "node": "Update API Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Database": {
+      "main": [
+        [
+          {
+            "node": "Update API Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update API Status": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

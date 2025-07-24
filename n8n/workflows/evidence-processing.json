@@ -1,0 +1,187 @@
+{
+  "name": "Evidence Processing Pipeline",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evidence-upload",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-evidence",
+      "name": "Evidence Upload Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "bucket": "={{ $credentials.awsS3Bucket }}",
+        "fileKey": "evidence/{{ $json.wardId }}/{{ $json.timestamp }}/{{ $json.filename }}",
+        "binaryData": true,
+        "additionalFields": {
+          "acl": "private",
+          "contentType": "{{ $json.mimeType }}",
+          "metadata": {
+            "ward_id": "{{ $json.wardId }}",
+            "incident_id": "{{ $json.incidentId }}",
+            "upload_timestamp": "{{ $json.timestamp }}"
+          }
+        }
+      },
+      "id": "s3-upload",
+      "name": "Upload to S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "evidence",
+        "columns": "incident_id, ward_id, file_path, file_type, file_size, upload_timestamp, storage_provider",
+        "additionalFields": {
+          "incident_id": "={{ $json.incidentId }}",
+          "ward_id": "={{ $json.wardId }}",
+          "file_path": "evidence/{{ $json.wardId }}/{{ $json.timestamp }}/{{ $json.filename }}",
+          "file_type": "={{ $json.mimeType }}",
+          "file_size": "={{ $json.fileSize }}",
+          "upload_timestamp": "={{ $json.timestamp }}",
+          "storage_provider": "s3"
+        }
+      },
+      "id": "postgres-evidence",
+      "name": "Store Evidence Metadata",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT g.phone_number, g.email, u.first_name FROM guardians g JOIN users u ON g.guardian_id = u.id WHERE g.ward_id = '{{ $json.wardId }}' AND g.status = 'ACCEPTED'"
+      },
+      "id": "get-guardians",
+      "name": "Get Ward Guardians",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "accountSid": "={{ $credentials.twilioAccountSid }}",
+        "authToken": "={{ $credentials.twilioAuthToken }}",
+        "from": "={{ $credentials.twilioPhoneNumber }}",
+        "to": "={{ $json.phone_number }}",
+        "body": "📎 Evidence uploaded by {{ $json.wardName }}. File: {{ $json.filename }} ({{ $json.fileSize }} bytes). View in dashboard: {{ $json.dashboardUrl }}"
+      },
+      "id": "notify-guardians-sms",
+      "name": "Notify Guardians SMS",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "evidence@guardianpulse.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "📎 New Evidence - {{ $json.wardName }}",
+        "html": "<h2>New Evidence Uploaded</h2><p><strong>{{ $json.wardName }}</strong> has uploaded new evidence.</p><p><strong>File:</strong> {{ $json.filename }}</p><p><strong>Type:</strong> {{ $json.mimeType }}</p><p><strong>Size:</strong> {{ $json.fileSize }} bytes</p><p><strong>Uploaded:</strong> {{ $json.timestamp }}</p><p><a href='{{ $json.dashboardUrl }}' style='background: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>View Evidence</a></p>"
+      },
+      "id": "notify-guardians-email",
+      "name": "Notify Guardians Email",
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"message\": \"Evidence processed successfully\", \"s3Path\": $json.s3Path, \"evidenceId\": $json.evidenceId } }}"
+      },
+      "id": "webhook-response",
+      "name": "Processing Complete",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 350]
+    }
+  ],
+  "connections": {
+    "Evidence Upload Webhook": {
+      "main": [
+        [
+          {
+            "node": "Upload to S3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Ward Guardians",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to S3": {
+      "main": [
+        [
+          {
+            "node": "Store Evidence Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Evidence Metadata": {
+      "main": [
+        [
+          {
+            "node": "Processing Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ward Guardians": {
+      "main": [
+        [
+          {
+            "node": "Notify Guardians SMS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Guardians Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Guardians SMS": {
+      "main": [
+        [
+          {
+            "node": "Processing Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Guardians Email": {
+      "main": [
+        [
+          {
+            "node": "Processing Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

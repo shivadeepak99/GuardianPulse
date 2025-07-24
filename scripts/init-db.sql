@@ -9,6 +9,9 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- Set timezone
 SET timezone = 'UTC';
 
+-- Create n8n database for workflow automation
+CREATE DATABASE n8n_db;
+
 -- Log initialization
 DO $$
 BEGIN
@@ -16,4 +19,5 @@ BEGIN
     RAISE NOTICE 'Database: %', current_database();
     RAISE NOTICE 'User: %', current_user;
     RAISE NOTICE 'Timestamp: %', now();
+    RAISE NOTICE 'n8n database created for workflow automation';
 END $$;

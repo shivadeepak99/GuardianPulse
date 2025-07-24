@@ -105,10 +105,62 @@ services:
     networks:
       - guardian-pulse-network
 
+  # n8n Workflow Automation Service
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: guardian-pulse-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      # Basic Configuration
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=guardian_admin
+      - N8N_BASIC_AUTH_PASSWORD=guardian_n8n_2025
+      
+      # Database Configuration (use PostgreSQL)
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=guardian-pulse-postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_db
+      - DB_POSTGRESDB_USER=guardianpulse
+      - DB_POSTGRESDB_PASSWORD=guardian_secure_2025
+      
+      # Security & Performance
+      - N8N_SECURE_COOKIE=false
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678
+      
+      # Integration Settings
+      - N8N_PAYLOAD_SIZE_MAX=16
+      - N8N_METRICS=true
+      
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/home/node/.n8n/workflows:rw
+      - ./n8n/credentials:/home/node/.n8n/credentials:rw
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - guardian-pulse-network
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  n8n_data:
     driver: local
 
 networks:
