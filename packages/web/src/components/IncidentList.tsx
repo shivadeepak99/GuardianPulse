@@ -169,7 +169,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
 
   if (error) {
     return (
-      <ErrorDisplay error={error} onRetry={loadIncidents} variant="card" />
+      <ErrorDisplay error={error} onRetry={loadIncidents} variant="default" />
     );
   }
 

@@ -52,6 +52,8 @@ services:
     container_name: guardian-pulse-api
     ports:
       - "8080:8080"
+    env_file:
+      - ./packages/api/.env
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://guardianpulse:guardian_secure_2025@postgres:5432/guardianpulse_db

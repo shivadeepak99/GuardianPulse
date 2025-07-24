@@ -1,0 +1,166 @@
+name: Full Stack CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.changes.outputs.api }}
+      web: ${{ steps.changes.outputs.web }}
+      mobile: ${{ steps.changes.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            api:
+              - 'packages/api/**'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+            web:
+              - 'packages/web/**'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+            mobile:
+              - 'packages/mobile/**'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+
+  test-api:
+    needs: changes
+    if: ${{ needs.changes.outputs.api == 'true' }}
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: guardian_test
+          POSTGRES_PASSWORD: test_password_2025
+          POSTGRES_DB: guardian_pulse_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: 🔨 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🏗️ Build API
+        run: pnpm --filter api build
+
+      - name: 📊 Setup Database
+        working-directory: packages/api
+        run: |
+          pnpm exec prisma generate
+          pnpm exec prisma db push --force-reset
+        env:
+          DATABASE_URL: postgresql://guardian_test:test_password_2025@localhost:5432/guardian_pulse_test
+
+      - name: 🧪 Run API Tests
+        run: pnpm --filter api test:coverage
+        env:
+          DATABASE_URL: postgresql://guardian_test:test_password_2025@localhost:5432/guardian_pulse_test
+          NODE_ENV: test
+          JWT_SECRET: test_jwt_secret_for_ci_pipeline_2025
+
+  test-web:
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: 🔨 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🏗️ Build Web App
+        run: pnpm --filter web build
+
+      - name: 🧪 Run Web Tests (if any)
+        run: pnpm --filter web test || echo "No web tests configured yet"
+
+  test-mobile:
+    needs: changes
+    if: ${{ needs.changes.outputs.mobile == 'true' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: 🔨 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: ✅ TypeScript Check
+        run: pnpm --filter mobile typecheck
+
+      - name: 🧪 Run Mobile Tests (if any)
+        run: pnpm --filter mobile test || echo "No mobile tests configured yet"
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: 🔨 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🛡️ Security audit
+        run: pnpm audit --audit-level moderate

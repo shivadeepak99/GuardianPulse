@@ -25,4 +25,5 @@ export {
 export { Toast, ToastContainer, useToast } from "./Toast";
 
 // Error Components
-export { ErrorBoundary, ErrorDisplay } from "./ErrorBoundary";
+export { ErrorDisplay } from "./ErrorBoundary";
+export { ErrorBoundary } from "./ErrorBoundary";

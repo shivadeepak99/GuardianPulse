@@ -224,7 +224,7 @@ const DashboardPage: React.FC = () => {
             <ErrorDisplay
               error={error}
               onRetry={loadWards}
-              variant="card"
+              variant="default"
               className="max-w-md mx-auto"
             />
           </div>
