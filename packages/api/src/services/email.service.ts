@@ -29,7 +29,12 @@ export class EmailService {
   private isConfigured = false;
 
   constructor() {
-    this.initialize();
+    // Initialize asynchronously without blocking the constructor
+    this.initialize().catch(error => {
+      Logger.error('Failed to initialize email service', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    });
   }
 
   private async initialize(): Promise<void> {
@@ -63,9 +68,12 @@ export class EmailService {
         user: emailConfig.auth.user,
       });
     } catch (error) {
+      // Don't throw - just log and continue
       Logger.error('Failed to initialize email service', {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
+      // Set isConfigured to false so email sending will be skipped
+      this.isConfigured = false;
     }
   }
 

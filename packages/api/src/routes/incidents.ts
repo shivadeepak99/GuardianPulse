@@ -984,7 +984,7 @@ router.get(
       const s3Service = new S3Service();
 
       const evidenceWithUrls = await Promise.all(
-        evidenceRecords.map(async evidence => {
+        evidenceRecords.map(async (evidence: any) => {
           try {
             const downloadUrl = await s3Service.getDownloadPresignedUrl(evidence.storageUrl);
             const fileName = evidence.fileName || evidence.storageUrl.split('/').pop() || 'unknown';

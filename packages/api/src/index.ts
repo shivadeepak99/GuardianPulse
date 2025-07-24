@@ -1,5 +1,16 @@
 console.log('🎯 Starting index.ts module...');
 
+// Add process error handlers for debugging
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🚨 Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit the process, just log it
+});
+
+process.on('uncaughtException', error => {
+  console.error('🚨 Uncaught Exception:', error);
+  // Don't exit the process, just log it
+});
+
 import express, { Express } from 'express';
 console.log('✅ Express imported');
 
@@ -43,10 +54,15 @@ import {
 } from './middlewares';
 console.log('✅ Middlewares imported');
 
+console.log('🔍 Importing health routes...');
 import healthRoutes from './api/health.routes';
-import apiRoutes from './routes';
-console.log('✅ Routes imported');
+console.log('✅ Health routes imported');
 
+console.log('🔍 Importing API routes...');
+import apiRoutes from './routes';
+console.log('✅ API routes imported');
+
+console.log('🔍 Importing socket...');
 import { initSocket } from './socket';
 console.log('✅ Socket imported');
 

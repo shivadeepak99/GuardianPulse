@@ -58,7 +58,7 @@ export class ConfigService {
 
       // Clear existing cache and load new values
       this.configCache.clear();
-      configs.forEach(config => {
+      configs.forEach((config: any) => {
         this.configCache.set(config.key, config.value);
       });
 
@@ -200,7 +200,7 @@ export class ConfigService {
   ): Promise<void> {
     try {
       // Use transaction for atomic updates
-      await this.db.$transaction(async tx => {
+      await this.db.$transaction(async (tx: any) => {
         for (const config of configs) {
           await tx.appConfig.upsert({
             where: { key: config.key },

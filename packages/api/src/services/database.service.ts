@@ -1,28 +1,41 @@
 console.log('🔍 About to import PrismaClient...');
-import { PrismaClient } from '../generated/prisma';
-console.log('✅ PrismaClient imported');
-
-console.log('🔍 About to import Logger...');
+// Temporarily comment out PrismaClient import to isolate the issue
+// import { PrismaClient } from '../generated/prisma';
+console.log('✅ PrismaClient import skipped for debugging');
 import { Logger } from '../utils';
+
 console.log('✅ Logger imported in database service');
 
 /**
  * Database Service
  * Centralized database access layer using Prisma ORM
+ * TEMPORARILY DISABLED FOR DEBUGGING
  */
 export class DatabaseService {
-  private static instance: PrismaClient | null = null;
+  private static instance: any | null = null;
 
   /**
    * Get Prisma client instance (singleton pattern)
    */
-  public static getInstance(): PrismaClient {
+  public static getInstance(): any {
     if (!DatabaseService.instance) {
-      DatabaseService.instance = new PrismaClient({
-        log: ['query', 'info', 'warn', 'error'],
-      });
+      // Temporarily return mock object
+      DatabaseService.instance = {
+        $connect: async () => {
+          console.log('Mock database connect');
+        },
+        $disconnect: async () => {
+          console.log('Mock database disconnect');
+        },
+        appConfig: {
+          findMany: async () => {
+            console.log('Mock appConfig.findMany');
+            return []; // Return empty config array
+          },
+        },
+      };
 
-      Logger.info('Database connection initialized');
+      Logger.info('Mock database connection initialized');
     }
 
     return DatabaseService.instance;
