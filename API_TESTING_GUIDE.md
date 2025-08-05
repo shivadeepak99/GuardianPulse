@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- PostgreSQL running on port 5432
+- PostgreSQL running on port 5432 
 - Redis running on port 6379 (optional)
 - API server running on port 8080
 
