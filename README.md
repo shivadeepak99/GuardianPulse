@@ -1,3 +1,6 @@
+# THIS  PROJECT IS STILL ONGOING 
+
+
 # GuardianPulse
 
 Revolutionary AI-powered personal safety application with persistent monitoring and anomaly detection.
